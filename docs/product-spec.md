@@ -2,7 +2,7 @@
 
 **Product**: the agent spend kill switch. A free open-source CLI that caps what any AI agent can spend on LLM/API calls, plus a hosted guardrails dashboard ($19/mo) for fleets, alerts, and audit.
 
-**Domain**: costcap.dev (registered by Roger, 2026-09-29).
+**Domain**: costcap.dev (registered by Roger himself, 2026-09-29 ~10:52pm ET; DNS at his registrar - coordinate with the deploy lane for pointing).
 
 **Trilogy**: ConeReplay tests agent code before it ships (pre-deploy). NightlyQA walks the live product after deploy. CostCap bounds what the agent can spend while it runs. Shared engine DNA (proxy/metering core), separate products, same marketplace pipeline.
 
