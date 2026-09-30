@@ -1,0 +1,13 @@
+{
+  "version": "2026-09-30",
+  "sources": [
+    "https://developers.openai.com/api/docs/models/gpt-4o",
+    "https://developers.openai.com/api/docs/models/gpt-4o-mini"
+  ],
+  "currency": "usd_per_1m_tokens",
+  "fallback": { "input": 2.50, "cached_input": 1.25, "output": 10.00 },
+  "models": {
+    "gpt-4o": { "input": 2.50, "cached_input": 1.25, "output": 10.00 },
+    "gpt-4o-mini": { "input": 0.15, "cached_input": 0.075, "output": 0.60 }
+  }
+}
