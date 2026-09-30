@@ -1,0 +1,10 @@
+{
+  "name": "costcap",
+  "version": "0.0.1",
+  "description": "Spend guardrails for AI agents: meter, cap, hard-stop. Guardrails, not guarantees.",
+  "type": "module",
+  "license": "MIT",
+  "bin": { "costcap": "./src/cli.js" },
+  "scripts": { "test": "node --test test/*.test.js" },
+  "engines": { "node": ">=20" }
+}
