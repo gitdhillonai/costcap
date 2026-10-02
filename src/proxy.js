@@ -46,12 +46,19 @@ function extractUsage(provider, body) {
   };
 }
 
-export function createMeteringProxy({ receiptsPath, upstreams = PROVIDERS, onReceipt, cap, spiral = createSpiralDetector(), velocity } = {}) {
+export function createMeteringProxy({ receiptsPath, upstreams = PROVIDERS, onReceipt, cap, spiral = createSpiralDetector(), velocity, killCheck } = {}) {
   const server = http.createServer((req, res) => {
     const [, provider, ...rest] = req.url.split("/");
     const upstream = upstreams[provider];
     if (!upstream || !rest.length) {
       res.writeHead(404).end(JSON.stringify({ error: `unknown provider path ${req.url}` }));
+      return;
+    }
+    // Kill switch: refused while the kill file exists.
+    const killed = killCheck?.();
+    if (killed) {
+      res.writeHead(429, { "content-type": "application/json" }).end(JSON.stringify({ error: "killed", ...killed }));
+      onReceipt?.({ ts: new Date().toISOString(), provider, blocked: true, cost_usd: 0, ...killed });
       return;
     }
     // Hard stop: at the cap the upstream call never happens.
