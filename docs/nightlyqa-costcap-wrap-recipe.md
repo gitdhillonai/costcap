@@ -13,11 +13,11 @@ Behaviour is unchanged when the variable is unset.
 ## Wrap command
 CostCap sets `OPENAI_BASE_URL=http://127.0.0.1:<port>/openai/v1` for the child.
 
-    cd /app && costcap wrap --cap 2.00 --day-cap 5.00 --month-cap 60.00 \
+    cd /app && costcap wrap --cap 2.00 --day-cap 5.00 --month-cap 50.00 \
       --receipts /data/costcap/receipts.jsonl --kill-file /data/costcap/KILL \
       -- node src/index.js run
 
-- Caps are placeholders. Set them from the real nightly spend after the first receipts. Roger's call on the numbers.
+- Caps: $2 per run, $5 per day, $50 per month. Rationale: NightlyQA makes exploratory LLM calls only, and a clean night should cost cents, so these sit well above normal and still stop a runaway within one run. Revisit after the first week of receipts.
 - `schedule` mode (long-lived cron) should wrap the whole process with `--day-cap`, not `--cap`, since the run cap resets per process.
 - Keep `--receipts` on the persistent volume so day and month caps survive container restarts.
 
