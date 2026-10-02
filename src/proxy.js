@@ -46,7 +46,7 @@ function extractUsage(provider, body) {
   };
 }
 
-export function createMeteringProxy({ receiptsPath, upstreams = PROVIDERS, onReceipt, cap, spiral = createSpiralDetector() } = {}) {
+export function createMeteringProxy({ receiptsPath, upstreams = PROVIDERS, onReceipt, cap, spiral = createSpiralDetector(), velocity } = {}) {
   const server = http.createServer((req, res) => {
     const [, provider, ...rest] = req.url.split("/");
     const upstream = upstreams[provider];
@@ -59,6 +59,13 @@ export function createMeteringProxy({ receiptsPath, upstreams = PROVIDERS, onRec
     if (hit) {
       res.writeHead(429, { "content-type": "application/json" }).end(JSON.stringify(budgetExceededBody(hit)));
       onReceipt?.({ ts: new Date().toISOString(), provider, blocked: true, cost_usd: 0, ...hit });
+      return;
+    }
+    // Cost-velocity / step-budget breaker: latches until resume().
+    const vhit = velocity?.check();
+    if (vhit) {
+      res.writeHead(429, { "content-type": "application/json" }).end(JSON.stringify({ error: "breaker_open", ...vhit }));
+      onReceipt?.({ ts: new Date().toISOString(), provider, blocked: true, cost_usd: 0, ...vhit });
       return;
     }
     const chunks = [];
@@ -110,6 +117,7 @@ export function createMeteringProxy({ receiptsPath, upstreams = PROVIDERS, onRec
             ...costForUsage(parsed.model ?? "unknown", usage),
           };
           cap?.record(receipt);
+          velocity?.record(receipt.cost_usd ?? 0);
           if (receiptsPath) appendFileSync(receiptsPath, JSON.stringify(receipt) + "\n");
           onReceipt?.(receipt);
         }
