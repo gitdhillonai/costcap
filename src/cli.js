@@ -55,10 +55,21 @@ export async function wrap(argv) {
     env[k] = v.join("=");
   }
   const child = spawn(command[0], command.slice(1), { env, stdio: "inherit" });
+  // Kill switch also stops the wrapped child: SIGTERM, then SIGKILL after 5s.
+  const killCheck = createKillCheck(killFile);
+  let killedByCostcap = false;
+  const watcher = setInterval(() => {
+    if (killedByCostcap || !killCheck()) return;
+    killedByCostcap = true;
+    console.error("costcap: kill file present, stopping wrapped process");
+    child.kill("SIGTERM");
+    setTimeout(() => child.kill("SIGKILL"), 5000).unref();
+  }, Number(process.env.COSTCAP_KILL_POLL_MS) || 500);
   const code = await new Promise((resolve) => {
-    child.on("exit", (c, sig) => resolve(c ?? (sig ? 1 : 0)));
+    child.on("exit", (c, sig) => resolve(killedByCostcap ? 143 : (c ?? (sig ? 1 : 0))));
     child.on("error", (e) => { console.error(`costcap: failed to start ${command[0]}: ${e.message}`); resolve(127); });
   });
+  clearInterval(watcher);
   server.close();
   const s = cap.spend();
   console.error(`costcap: run spend $${s.run.toFixed(4)}${caps.run != null ? ` of $${caps.run} cap` : ""}`);

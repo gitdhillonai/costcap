@@ -54,3 +54,14 @@ test("cli kill and resume subcommands", () => {
   spawnSync("node", [cli, "resume", "--kill-file", f]);
   assert.ok(!existsSync(f));
 });
+
+test("wrap SIGTERMs the child when the kill file appears", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "cc-"));
+  const f = join(dir, "KILL");
+  process.env.COSTCAP_KILL_POLL_MS = "50";
+  const { wrap } = await import("../src/cli.js");
+  const run = wrap(["--receipts", join(dir, "r.jsonl"), "--kill-file", f, "--", "node", "-e", "setInterval(()=>{},1000)"]);
+  setTimeout(() => kill(f, "test"), 300);
+  const code = await Promise.race([run, new Promise((r) => setTimeout(() => r("timeout"), 8000))]);
+  assert.equal(code, 143);
+});
