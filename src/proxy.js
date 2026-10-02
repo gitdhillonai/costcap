@@ -8,6 +8,7 @@
 import http from "node:http";
 import { appendFileSync } from "node:fs";
 import { costForUsage } from "./pricing.js";
+import { budgetExceededBody } from "./cap.js";
 
 const PROVIDERS = {
   openai: "https://api.openai.com",
@@ -44,12 +45,19 @@ function extractUsage(provider, body) {
   };
 }
 
-export function createMeteringProxy({ receiptsPath, upstreams = PROVIDERS, onReceipt } = {}) {
+export function createMeteringProxy({ receiptsPath, upstreams = PROVIDERS, onReceipt, cap } = {}) {
   const server = http.createServer((req, res) => {
     const [, provider, ...rest] = req.url.split("/");
     const upstream = upstreams[provider];
     if (!upstream || !rest.length) {
       res.writeHead(404).end(JSON.stringify({ error: `unknown provider path ${req.url}` }));
+      return;
+    }
+    // Hard stop: at the cap the upstream call never happens.
+    const hit = cap?.check();
+    if (hit) {
+      res.writeHead(429, { "content-type": "application/json" }).end(JSON.stringify(budgetExceededBody(hit)));
+      onReceipt?.({ ts: new Date().toISOString(), provider, blocked: true, cost_usd: 0, ...hit });
       return;
     }
     const chunks = [];
@@ -93,6 +101,7 @@ export function createMeteringProxy({ receiptsPath, upstreams = PROVIDERS, onRec
             model: parsed.model ?? "unknown",
             ...costForUsage(parsed.model ?? "unknown", usage),
           };
+          cap?.record(receipt);
           if (receiptsPath) appendFileSync(receiptsPath, JSON.stringify(receipt) + "\n");
           onReceipt?.(receipt);
         }
