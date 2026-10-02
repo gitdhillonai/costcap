@@ -43,3 +43,34 @@ test("wrap points the child at the proxy and the cap hard-stops the second call"
   assert.equal(res.code, 0);
   assert.equal(res.out.trim(), "200 429");
 });
+
+test("parseWrapArgs reads --max-steps and --velocity-multiple and validates them", () => {
+  const o = parseWrapArgs(["--max-steps", "40", "--velocity-multiple", "4", "--", "x"]);
+  assert.equal(o.maxSteps, 40);
+  assert.equal(o.velocityMultiple, 4);
+  assert.throws(() => parseWrapArgs(["--max-steps", "0", "--", "x"]), /positive integer/);
+  assert.throws(() => parseWrapArgs(["--max-steps", "1.5", "--", "x"]), /positive integer/);
+  assert.throws(() => parseWrapArgs(["--velocity-multiple", "1", "--", "x"]), /greater than 1/);
+});
+
+test("wrap --max-steps 2 lets two calls through and breaks the third with breaker_open", async (t) => {
+  const up = await new Promise((r) => {
+    const s = http.createServer((q, res) => res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ model: "gpt-4o-mini", usage: { prompt_tokens: 10, completion_tokens: 5 } })));
+    s.listen(0, "127.0.0.1", () => r({ s, port: s.address().port }));
+  });
+  t.after(() => up.s.close());
+  const dir = mkdtempSync(path.join(tmpdir(), "cc-"));
+  const script = `
+    const u = process.env.OPENAI_BASE_URL + "/chat/completions";
+    const out = [];
+    for (let n = 0; n < 3; n++) { const r = await fetch(u,{method:"POST",body:JSON.stringify({n})}); out.push(r.status); if (r.status===429) out.push((await r.json()).error); }
+    console.log(out.join(" "));`;
+  const res = await new Promise((resolve) => {
+    const c = spawn(process.execPath, ["src/cli.js", "wrap", "--max-steps", "2", "--receipts", path.join(dir, "r.jsonl"), "--", process.execPath, "--input-type=module", "-e", script],
+      { env: { ...process.env, COSTCAP_TEST_OPENAI_UPSTREAM: `http://127.0.0.1:${up.port}` } });
+    let out = ""; c.stdout.on("data", (d) => (out += d)); c.stderr.on("data", () => {});
+    c.on("exit", (code) => resolve({ code, out }));
+  });
+  assert.equal(res.code, 0);
+  assert.equal(res.out.trim(), "200 200 429 breaker_open");
+});

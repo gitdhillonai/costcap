@@ -7,13 +7,14 @@
 import { spawn } from "node:child_process";
 import { startMeteringProxy, baseUrlOverrides } from "./proxy.js";
 import { createCapEngine, loadReceipts } from "./cap.js";
+import { createVelocityBreaker } from "./velocity.js";
 
 export function parseWrapArgs(argv) {
   const sep = argv.indexOf("--");
-  if (sep === -1 || sep === argv.length - 1) throw new Error("usage: costcap wrap [--cap USD] [--day-cap USD] [--month-cap USD] [--receipts FILE] -- <command...>");
+  if (sep === -1 || sep === argv.length - 1) throw new Error("usage: costcap wrap [--cap USD] [--day-cap USD] [--month-cap USD] [--max-steps N] [--velocity-multiple X] [--receipts FILE] -- <command...>");
   const flags = argv.slice(0, sep);
   const command = argv.slice(sep + 1);
-  const opts = { caps: {}, receiptsPath: ".costcap/receipts.jsonl", command };
+  const opts = { caps: {}, maxSteps: undefined, velocityMultiple: undefined, receiptsPath: ".costcap/receipts.jsonl", command };
   const money = (name, v) => {
     const n = Number(v);
     if (!Number.isFinite(n) || n <= 0) throw new Error(`${name} must be a positive number of USD, got "${v}"`);
@@ -26,17 +27,26 @@ export function parseWrapArgs(argv) {
     if (f === "--cap") opts.caps.run = money(f, v);
     else if (f === "--day-cap") opts.caps.day = money(f, v);
     else if (f === "--month-cap") opts.caps.month = money(f, v);
-    else if (f === "--receipts") opts.receiptsPath = v;
+    else if (f === "--max-steps") {
+      const n = Number(v);
+      if (!Number.isInteger(n) || n <= 0) throw new Error(`--max-steps must be a positive integer, got "${v}"`);
+      opts.maxSteps = n;
+    } else if (f === "--velocity-multiple") {
+      const n = Number(v);
+      if (!Number.isFinite(n) || n <= 1) throw new Error(`--velocity-multiple must be a number greater than 1, got "${v}"`);
+      opts.velocityMultiple = n;
+    } else if (f === "--receipts") opts.receiptsPath = v;
     else throw new Error(`unknown flag ${f}`);
   }
   return opts;
 }
 
 export async function wrap(argv) {
-  const { caps, receiptsPath, command } = parseWrapArgs(argv);
+  const { caps, maxSteps, velocityMultiple, receiptsPath, command } = parseWrapArgs(argv);
   const cap = createCapEngine({ caps, history: loadReceipts(receiptsPath) });
+  const velocity = createVelocityBreaker({ maxSteps, ...(velocityMultiple ? { multiple: velocityMultiple } : {}) });
   const upstreams = process.env.COSTCAP_TEST_OPENAI_UPSTREAM ? { openai: process.env.COSTCAP_TEST_OPENAI_UPSTREAM } : undefined; // test hook
-  const { server, port } = await startMeteringProxy({ receiptsPath, cap, upstreams });
+  const { server, port } = await startMeteringProxy({ receiptsPath, cap, upstreams, velocity });
   const env = { ...process.env };
   for (const line of baseUrlOverrides(port)) {
     const [k, ...v] = line.split("=");
