@@ -97,3 +97,29 @@ test("anthropic usage shape meters input/output/cache_read", async (t) => {
   assert.equal(receipts[0].fallback, true); // unknown model -> declared fallback rate
   assert.equal(receipts[0].cost_usd, 2.5);
 });
+
+test("retry spiral: identical request past the threshold gets 429 spiral_detected and never reaches upstream", async (t) => {
+  let upstreamHits = 0;
+  const up = await new Promise((resolve) => {
+    const server = http.createServer((req, res) => { upstreamHits++; res.writeHead(200, { "content-type": "application/json" }).end(COMPLETION); });
+    server.listen(0, "127.0.0.1", () => resolve({ server, port: server.address().port }));
+  });
+  t.after(() => up.server.close());
+  const { createSpiralDetector } = await import("../src/spiral.js");
+  const receipts = [];
+  const { server, port } = await startMeteringProxy(
+    { upstreams: { openai: `http://127.0.0.1:${up.port}` }, spiral: createSpiralDetector({ threshold: 2 }), onReceipt: (r) => receipts.push(r) });
+  t.after(() => server.close());
+  const call = () => fetch(`http://127.0.0.1:${port}/openai/v1/chat/completions`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content: "same" }] }),
+  });
+  assert.equal((await call()).status, 200);
+  assert.equal((await call()).status, 200);
+  const third = await call();
+  assert.equal(third.status, 429);
+  const j = await third.json();
+  assert.equal(j.error, "spiral_detected");
+  assert.equal(j.count, 3);
+  assert.equal(upstreamHits, 2);
+  assert.equal(receipts.at(-1).reason, "spiral_detected");
+});

@@ -9,6 +9,7 @@ import http from "node:http";
 import { appendFileSync } from "node:fs";
 import { costForUsage } from "./pricing.js";
 import { budgetExceededBody } from "./cap.js";
+import { createSpiralDetector } from "./spiral.js";
 
 const PROVIDERS = {
   openai: "https://api.openai.com",
@@ -45,7 +46,7 @@ function extractUsage(provider, body) {
   };
 }
 
-export function createMeteringProxy({ receiptsPath, upstreams = PROVIDERS, onReceipt, cap } = {}) {
+export function createMeteringProxy({ receiptsPath, upstreams = PROVIDERS, onReceipt, cap, spiral = createSpiralDetector() } = {}) {
   const server = http.createServer((req, res) => {
     const [, provider, ...rest] = req.url.split("/");
     const upstream = upstreams[provider];
@@ -64,6 +65,13 @@ export function createMeteringProxy({ receiptsPath, upstreams = PROVIDERS, onRec
     req.on("data", (c) => chunks.push(c));
     req.on("end", async () => {
       const body = Buffer.concat(chunks);
+      // Retry-spiral guard: the (threshold+1)th identical request in the window is refused before forwarding.
+      const spiralHit = spiral?.observe(req.method, `/${rest.join("/")}`, body.toString("utf8"));
+      if (spiralHit) {
+        res.writeHead(429, { "content-type": "application/json" }).end(JSON.stringify({ error: "spiral_detected", ...spiralHit }));
+        onReceipt?.({ ts: new Date().toISOString(), provider, blocked: true, reason: "spiral_detected", cost_usd: 0, ...spiralHit });
+        return;
+      }
       const headers = { ...req.headers };
       delete headers.host;
       delete headers["content-length"];
