@@ -4,6 +4,11 @@
 // process's provider base URLs at it, and exits with the child's exit code.
 // Guardrails, not guarantees: only traffic through the proxy is metered.
 
+import { checkBudget } from "./check.js";
+import { serveMcp } from "./mcp.js";
+import { enroll, createFleetClient } from "./hosted/client.js";
+import { resolvePolicy } from "./hosted/policy.js";
+import { lockLedger } from "./ledger-lock.js";
 import { spawn } from "node:child_process";
 import { startMeteringProxy, baseUrlOverrides } from "./proxy.js";
 import { createCapEngine, loadReceipts } from "./cap.js";
@@ -37,6 +42,7 @@ export function parseWrapArgs(argv) {
       if (!Number.isFinite(n) || n <= 1) throw new Error(`--velocity-multiple must be a number greater than 1, got "${v}"`);
       opts.velocityMultiple = n;
     } else if (f === "--receipts") opts.receiptsPath = v;
+    else if (f === "--enrollment") opts.enrollmentPath = v;
     else if (f === "--kill-file") opts.killFile = v;
     else throw new Error(`unknown flag ${f}`);
   }
@@ -44,11 +50,27 @@ export function parseWrapArgs(argv) {
 }
 
 export async function wrap(argv) {
-  const { caps, maxSteps, velocityMultiple, receiptsPath, killFile, command } = parseWrapArgs(argv);
+  const { caps, maxSteps, velocityMultiple, receiptsPath, killFile, command, enrollmentPath } = parseWrapArgs(argv);
+  const release = lockLedger(receiptsPath);
+  try {
   const cap = createCapEngine({ caps, history: loadReceipts(receiptsPath) });
+  let fleet;
+  let fleetPolicy;
+  const setPolicy = (p) => {
+    fleetPolicy = p;
+    cap.updateCaps(resolvePolicy({ local: caps, lastKnown: { version: p.version, caps: p.caps, killed: p.killed } }).caps);
+  };
+  if (enrollmentPath) {
+    fleet = createFleetClient({ path: enrollmentPath, receiptsPath, onPolicy: setPolicy });
+    setPolicy(fleet.policy());
+    const result = await fleet.sync();
+    if (!result.online) console.error("costcap: fleet offline; cached policy enforced");
+  }
+  const localKill = createKillCheck(killFile);
+  const combinedKill = () => localKill() || (fleetPolicy?.killed || fleet?.revoked() ? { reason: "killed", note: "fleet policy or revoked credentials" } : null);
   const velocity = createVelocityBreaker({ maxSteps, ...(velocityMultiple ? { multiple: velocityMultiple } : {}) });
   const upstreams = process.env.COSTCAP_TEST_OPENAI_UPSTREAM ? { openai: process.env.COSTCAP_TEST_OPENAI_UPSTREAM } : undefined; // test hook
-  const { server, port } = await startMeteringProxy({ receiptsPath, cap, upstreams, velocity, killCheck: createKillCheck(killFile) });
+  const { server, port } = await startMeteringProxy({ receiptsPath, cap, upstreams, velocity, killCheck: combinedKill });
   const env = { ...process.env };
   for (const line of baseUrlOverrides(port)) {
     const [k, ...v] = line.split("=");
@@ -56,7 +78,8 @@ export async function wrap(argv) {
   }
   const child = spawn(command[0], command.slice(1), { env, stdio: "inherit" });
   // Kill switch also stops the wrapped child: SIGTERM, then SIGKILL after 5s.
-  const killCheck = createKillCheck(killFile);
+  const killCheck = combinedKill;
+  const syncTimer = fleet ? setInterval(() => fleet.sync(), 60_000) : null;
   let killedByCostcap = false;
   const watcher = setInterval(() => {
     if (killedByCostcap || !killCheck()) return;
@@ -70,16 +93,35 @@ export async function wrap(argv) {
     child.on("error", (e) => { console.error(`costcap: failed to start ${command[0]}: ${e.message}`); resolve(127); });
   });
   clearInterval(watcher);
+  if (syncTimer) clearInterval(syncTimer);
+  if (fleet) await fleet.sync();
+  server.closeAllConnections();
   server.close();
   const s = cap.spend();
   console.error(`costcap: run spend $${s.run.toFixed(4)}${caps.run != null ? ` of $${caps.run} cap` : ""}`);
   return code;
+  } finally { release(); }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [cmd, ...rest] = process.argv.slice(2);
   if (cmd === "wrap") {
     wrap(rest).then((c) => process.exit(c), (e) => { console.error(`costcap: ${e.message}`); process.exit(2); });
+  } else if (cmd === "check" || cmd === "mcp") {
+    try {
+      const parsed = parseWrapArgs([...rest, "--", "unused"]);
+      const options = { receiptsPath: parsed.receiptsPath, caps: parsed.caps };
+      if (cmd === "mcp") serveMcp(options);
+      else {
+        const result = checkBudget(options);
+        console.log(JSON.stringify(result));
+        process.exitCode = result.ok ? 0 : 1;
+      }
+    } catch (err) { console.error(`costcap: ${err.message}`); process.exitCode = 2; }
+  } else if (cmd === "enroll") {
+    const option = (name) => { const i = rest.indexOf(name); return i >= 0 ? rest[i + 1] : undefined; };
+    enroll({ url: option("--url"), name: option("--name"), token: process.env.COSTCAP_ENROLL_TOKEN, path: option("--enrollment") ?? ".costcap/enrollment.json" })
+      .then(({ agentId }) => console.error(`costcap: enrolled ${agentId}. Use --enrollment with wrap.`), (e) => { console.error(`costcap: ${e.message}`); process.exitCode = 2; });
   } else if (cmd === "kill") {
     const i = rest.indexOf("--kill-file");
     const file = i >= 0 ? rest[i + 1] : DEFAULT_KILL_FILE;

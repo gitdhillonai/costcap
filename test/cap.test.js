@@ -43,3 +43,11 @@ test("proxy: hard stop never calls upstream once the cap is hit", async () => {
   assert.equal(upstreamCalls, 1);
   server.close(); up.close();
 });
+
+test("invalid caps/history fail closed, uncertain spend persists across restart", () => {
+  assert.throws(() => createCapEngine({ caps: { run: -1 } }), /Invalid/);
+  assert.throws(() => createCapEngine({ history: [{ ts: "bad", cost_usd: 0 }] }), /Invalid/);
+  assert.throws(() => createCapEngine({ history: [{ ts: new Date().toISOString(), cost_usd: -1 }] }), /Invalid/);
+  const cap = createCapEngine({ history: [{ ts: new Date().toISOString(), cost_usd: null }] });
+  assert.equal(cap.check().reason, "unreconciled_receipt");
+});

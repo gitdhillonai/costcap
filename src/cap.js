@@ -10,13 +10,19 @@ export function loadReceipts(path) {
   return readFileSync(path, "utf8")
     .split("\n")
     .filter(Boolean)
-    .map((l) => { try { return JSON.parse(l); } catch { return null; } })
-    .filter(Boolean);
+    .map((l) => JSON.parse(l));
 }
 
 // caps: { run, day, month } in USD; any may be undefined.
 export function createCapEngine({ caps = {}, history = [], now = () => new Date() } = {}) {
+  for (const scope of ["run", "day", "month"]) {
+    if (caps[scope] != null && (!Number.isFinite(caps[scope]) || caps[scope] <= 0)) throw new Error(`Invalid ${scope} cap`);
+  }
+  for (const r of history) {
+    if (!Number.isFinite(Date.parse(r.ts)) || (r.cost_usd !== null && (!Number.isFinite(r.cost_usd) || r.cost_usd < 0))) throw new Error("Invalid receipt history; reconcile before running");
+  }
   let run = 0;
+  const uncertain = history.some((r) => r.cost_usd === null);
   const entries = history.map((r) => ({ ts: new Date(r.ts), cost: r.cost_usd ?? 0 }));
   const sum = (pred) => entries.filter(pred).reduce((a, e) => a + e.cost, 0);
 
@@ -29,8 +35,13 @@ export function createCapEngine({ caps = {}, history = [], now = () => new Date(
 
   return {
     spend,
+    updateCaps(next) {
+      for (const scope of ["run", "day", "month"]) if (next[scope] != null && (!Number.isFinite(next[scope]) || next[scope] <= 0)) throw new Error("Invalid updated caps");
+      caps = { ...next };
+    },
     // Returns null if the call may proceed, else a budget-exceeded descriptor.
     check() {
+      if (uncertain) return { scope: "accounting", cap: 0, spent: 0, reason: "unreconciled_receipt" };
       const s = spend();
       for (const scope of ["run", "day", "month"]) {
         const cap = caps[scope];
