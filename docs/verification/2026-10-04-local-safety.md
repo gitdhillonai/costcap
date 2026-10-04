@@ -41,3 +41,20 @@ No other issue is fully live-verified by these local tests alone.
 This adds client and adapters, not a hosted dashboard. #11/#12/#14 and deployment
 remain open. #13 still needs end-to-end service verification. #15 still needs
 real publication/listings and legal fields. No work in other repositories.
+
+## Hosted API follow-up on supplied main acdb9ee2
+
+67 tests pass, including actual local HTTP server endpoints and durable restart.
+New API: verified-email code auth with challenge verification seam, separate org
+per new user, HttpOnly cookies/origin checks, one-use enrollment tokens, policy
+updates, revocation, receipt dedupe/conflict rejection, tenant-scoped fleet/audit,
+alert outbox retry/dedupe, transaction rollback/corrupt store refusal. Persistent
+revocation now survives client restart.
+
+Production launcher requires HTTPS origin, real Turnstile verification,
+transactional email configuration and durable /data mount. Alert delivery is
+restricted by explicitly configured authorized org ID. No live send occurred.
+Store is a single-process local file, not Postgres/RLS. No finished dashboard UI
+or live deployment. Do not close hosted stories solely on this patch. Provider
+pricing reconciliation, publication, marketplace, two-week fleet evidence remain
+open. These are concrete limits, not a product-complete claim.

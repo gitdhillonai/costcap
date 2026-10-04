@@ -4,7 +4,19 @@
   "description": "Spend guardrails for AI agents: meter, cap, hard-stop. Guardrails, not guarantees.",
   "type": "module",
   "license": "MIT",
-  "bin": { "costcap": "./src/cli.js" },
-  "scripts": { "test": "node --test test/*.test.js" },
-  "engines": { "node": ">=20" }
+  "bin": {
+    "costcap": "./src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "start": "node src/hosted/run.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ]
 }

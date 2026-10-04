@@ -51,7 +51,7 @@ export async function enroll({ url, token, name, path }) {
 
 export function createFleetClient({ path, receiptsPath, onPolicy = () => {} }) {
   let data = loadEnrollment(path);
-  let revoked = false;
+  let revoked = Boolean(data.revoked);
   let busy = false;
   const policy = () => resolvePolicy({ lastKnown: data.policy });
   return {
@@ -82,7 +82,7 @@ export function createFleetClient({ path, receiptsPath, onPolicy = () => {} }) {
         return { online: true, version: data.policy.version };
       } catch (err) {
         // Revoked credentials cannot keep an agent running as if merely offline.
-        if (/HTTP (401|403)/.test(err.message)) revoked = true;
+        if (/HTTP (401|403)/.test(err.message)) { revoked = true; data.revoked = true; saveEnrollment(path, data); }
         return { online: false, revoked, version: data.policy.version, error: err.message };
       } finally { busy = false; }
     },

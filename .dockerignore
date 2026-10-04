@@ -1,0 +1,6 @@
+.git
+.costcap
+node_modules
+*.jsonl
+.env*
+*.tgz
