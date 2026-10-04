@@ -62,3 +62,16 @@ test("audit entry needs who/what", () => {
   assert.throws(() => auditEntry({ orgId: "o" }));
   assert.equal(auditEntry({ orgId: "o", actor: "u", action: "cap.raise", target: "a1" }).action, "cap.raise");
 });
+
+test("same-version policy cannot silently loosen caps or resume killed agent", () => {
+  const lastKnown = { version: 4, caps: { run: 1 }, killed: true };
+  const fetched = { version: 4, caps: { run: 100 }, killed: false };
+  const r = resolvePolicy({ lastKnown, fetched });
+  assert.equal(r.caps.run, 1);
+  assert.equal(r.killed, true);
+});
+
+test("corrupt cached policies and invalid local caps fail closed", () => {
+  assert.throws(() => resolvePolicy({ lastKnown: { version: 1, caps: { day: -1 } } }), /Invalid cached/);
+  assert.throws(() => resolvePolicy({ local: { run: -1 } }), /Invalid local/);
+});

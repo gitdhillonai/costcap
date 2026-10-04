@@ -1,0 +1,21 @@
+name: CostCap receipt budget check
+description: Check estimated spend in a local CostCap receipt ledger. Unknown spend fails closed.
+inputs:
+  receipts:
+    description: Receipt JSONL file path relative to the workspace
+    required: true
+  cap:
+    description: Maximum estimated USD across the selected receipt file
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    - shell: bash
+      env:
+        COSTCAP_RECEIPTS: ${{ inputs.receipts }}
+        COSTCAP_CAP: ${{ inputs.cap }}
+        COSTCAP_ACTION_PATH: ${{ github.action_path }}
+      run: node "$COSTCAP_ACTION_PATH/src/cli.js" check --receipts "$COSTCAP_RECEIPTS" --cap "$COSTCAP_CAP"

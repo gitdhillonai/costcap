@@ -43,9 +43,11 @@ export function validatePolicy(p) {
 // server response (or null when offline/unreachable).
 // Local flags can only tighten a fleet policy, never loosen it.
 export function resolvePolicy({ local = {}, lastKnown = null, fetched = null }) {
+  if (lastKnown && validatePolicy(lastKnown).length) throw new Error("Invalid cached fleet policy; refusing to loosen enforcement");
+  for (const k of CAP_KEYS) if (local[k] != null && (!Number.isFinite(local[k]) || local[k] <= 0)) throw new Error(`Invalid local cap ${k}`);
   let server = lastKnown;
   let source = lastKnown ? "last-known" : "none";
-  if (fetched && validatePolicy(fetched).length === 0 && (!lastKnown || fetched.version >= lastKnown.version)) {
+  if (fetched && validatePolicy(fetched).length === 0 && (!lastKnown || fetched.version > lastKnown.version)) {
     server = fetched;
     source = "server";
   }
