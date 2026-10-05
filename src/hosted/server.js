@@ -1,6 +1,7 @@
 // Free-beta API. Durable local datastore, exactly one replica, trusted TLS ingress.
 // Existing company membership is never inferred from an email domain.
 import http from "node:http";
+import { uiResponse } from "./ui.js";
 import { randomBytes, randomUUID, randomInt } from "node:crypto";
 import { openStore } from "./store.js";
 import { hashToken, validatePolicy } from "./policy.js";
@@ -10,7 +11,7 @@ const fail = (status, message) => { const err = new Error(message); err.status =
 const audit = (s, orgId, actor, action, target, detail = {}) => s.audit.push(auditEntry({ orgId, actor, action, target, detail }));
 
 export function createHostedServer({ storePath, verifyChallenge, sendCode, deliverAlert,
-  now = () => Date.now(), secureCookies = true, origin, bodyLimit = 256_000 } = {}) {
+  now = () => Date.now(), secureCookies = true, origin, turnstileSiteKey = "", bodyLimit = 256_000 } = {}) {
   if (!storePath || !verifyChallenge || !sendCode || !origin) throw new Error("Store, origin, Turnstile verifier and authorized code sender required");
   const store = openStore(storePath);
   const rate = new Map();
@@ -34,6 +35,10 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, deliv
     const json = (status, value, headers = {}) => res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store", "x-content-type-options": "nosniff", ...headers }).end(JSON.stringify(value));
     try {
       const path = new URL(req.url, origin).pathname;
+      if (req.method === "GET") {
+        const ui = uiResponse(path, turnstileSiteKey);
+        if (ui) return res.writeHead(200, ui.headers).end(ui.body);
+      }
       if (req.method === "GET" && path === "/health") return json(200, { status: "ok", product: "CostCap", beta: true, billing: "disabled", persistence: "single-process-file", version: "0.0.1" });
       const browserMutation = req.method !== "GET" && !req.headers.authorization;
       if (browserMutation && req.headers.origin !== origin) fail(403, "Origin rejected");

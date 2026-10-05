@@ -1,0 +1,40 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { Script } from 'node:vm';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { uiResponse } from '../src/hosted/ui.js';
+import { createHostedServer } from '../src/hosted/server.js';
+test('same-origin UI assets use CSP and no inline scripts or data HTML injection', () => {
+  const html = uiResponse('/');
+  assert.match(html.body, /FREE BETA/);
+  assert.match(html.body, /No card. No charges/);
+  assert.match(html.body, /Only proxy-routed traffic/);
+  assert.ok(html.headers['content-security-policy'].includes("frame-ancestors 'none'"));
+  assert.ok(!html.headers['content-security-policy'].includes('unsafe-inline'));
+  assert.ok(!/<script[^>]*>[^<]+/.test(html.body));
+  const js = uiResponse('/assets/app.js').body;
+  new Script(js);
+  assert.ok(!js.includes('innerHTML'));
+  assert.ok(!js.includes('localStorage'));
+  assert.ok(!js.includes('sessionStorage'));
+  assert.match(js, /textContent/);
+  assert.equal(uiResponse('/anything'), null);
+});
+test('UI config returns public site key only, JSON-encoded', () => {
+  const key = '</script><script>alert(1)</script>';
+  assert.deepEqual(JSON.parse(uiResponse('/ui/config', key).body), { siteKey: key });
+  assert.equal(uiResponse('/ui/config', key).headers['content-type'], 'application/json');
+});
+test('hosted root serves UI; fleet remains protected and assets do not expose secrets', async t => {
+  const service = createHostedServer({ storePath: join(mkdtempSync(join(tmpdir(),'cc-ui-')),'data.json'), origin:'http://localhost', turnstileSiteKey:'public-site-key', secureCookies:false, verifyChallenge:async()=>false, sendCode:async()=>assert.fail('must not send') });
+  await new Promise(r=>service.server.listen(0,'127.0.0.1',r));
+  t.after(()=>{service.server.closeAllConnections();service.server.close()});
+  const base='http://127.0.0.1:'+service.server.address().port;
+  const root=await fetch(base+'/');assert.equal(root.status,200);assert.match(root.headers.get('content-type'),/text\/html/);assert.match(await root.text(),/Open your workspace/);
+  assert.deepEqual(await (await fetch(base+'/ui/config')).json(),{siteKey:'public-site-key'});
+  const fleet=await fetch(base+'/v1/fleet');assert.equal(fleet.status,401);
+  const code=await fetch(base+'/auth/request',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:JSON.stringify({email:'a@example.invalid',turnstileToken:'bad'})});assert.equal(code.status,403);
+  assert.equal((await fetch(base+'/assets/app.js')).status,200);
+});
