@@ -14,6 +14,7 @@ const sendEmail = createTransactionalEmail({ provider: emailProvider, apiKey: em
 const delivery = createAlertDelivery({ emailProvider, emailKey, emailFrom: from, emailTo, slackWebhook: process.env.COSTCAP_SLACK_WEBHOOK });
 const { server, evaluateFleetAlerts } = createHostedServer({
   origin,
+  turnstileSiteKey: required("TURNSTILE_SITE_KEY"),
   storePath: process.env.COSTCAP_STORE_PATH ?? "/data/costcap.json",
   verifyChallenge: async (response, remoteip) => {
     if (typeof response !== "string" || response.length > 2048) return false;
