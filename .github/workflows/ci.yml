@@ -14,4 +14,5 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: npm test
+      - run: npm run acceptance:runaway
       - run: npm pack --dry-run

@@ -1,6 +1,6 @@
 // Alert rules for the hosted dashboard (story #14). Pure logic: given an
 // agent's state, returns the alerts that should fire now. The caller sends
-// them (Resend email, Slack) and writes the audit log. Dedupe: an alert
+// them (Brevo email, Slack) and writes the audit log. Dedupe: an alert
 // with the same key does not fire again until it clears and re-arms.
 
 export const ALERT_KINDS = ["cap_approaching", "cap_hit", "loop_detected", "agent_silent"];

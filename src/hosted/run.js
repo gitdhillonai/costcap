@@ -5,13 +5,14 @@ const required = (key) => { if (!process.env[key]) throw new Error(`${key} requi
 const origin = required("COSTCAP_ORIGIN");
 if (new URL(origin).protocol !== "https:") throw new Error("Production origin must be HTTPS");
 const turnstileKey = required("TURNSTILE_SECRET_KEY");
-const emailProvider = process.env.COSTCAP_EMAIL_PROVIDER ?? "resend";
-const emailKey = required(emailProvider === "brevo" ? "BREVO_API_KEY" : "RESEND_API_KEY");
+const emailProvider = process.env.COSTCAP_EMAIL_PROVIDER ?? "brevo";
+if (emailProvider !== "brevo") throw new Error("COSTCAP_EMAIL_PROVIDER must be brevo");
+const emailKey = required("BREVO_API_KEY");
 const from = required("COSTCAP_EMAIL_FROM");
 const emailTo = process.env.COSTCAP_ALERT_EMAILS?.split(",").map((x) => x.trim()).filter(Boolean);
 const authorizedOrg = process.env.COSTCAP_ALERT_ORG_ID;
-const sendEmail = createTransactionalEmail({ provider: emailProvider, apiKey: emailKey, from });
-const delivery = createAlertDelivery({ emailProvider, emailKey, emailFrom: from, emailTo, slackWebhook: process.env.COSTCAP_SLACK_WEBHOOK });
+const sendEmail = createTransactionalEmail({ provider: "brevo", apiKey: emailKey, from });
+const delivery = createAlertDelivery({ emailKey, emailFrom: from, emailTo, slackWebhook: process.env.COSTCAP_SLACK_WEBHOOK });
 const { server, evaluateFleetAlerts } = createHostedServer({
   origin,
   turnstileSiteKey: required("TURNSTILE_SITE_KEY"),

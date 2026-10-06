@@ -125,7 +125,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   } else if (cmd === "kill") {
     const i = rest.indexOf("--kill-file");
     const file = i >= 0 ? rest[i + 1] : DEFAULT_KILL_FILE;
-    kill(file, rest.filter((a, j) => a !== "--kill-file" && j !== i + 1).join(" "));
+    const skip = new Set(i >= 0 ? [i, i + 1] : []);
+    kill(file, rest.filter((a, j) => !skip.has(j)).join(" "));
     console.error(`costcap: killed. Wrapped agents sharing ${file} are refused until \`costcap resume\`.`);
   } else if (cmd === "resume") {
     const i = rest.indexOf("--kill-file");

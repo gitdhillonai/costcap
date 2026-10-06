@@ -9,7 +9,8 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "start": "node src/hosted/run.js"
+    "start": "node src/hosted/run.js",
+    "acceptance:runaway": "node scripts/runaway-smoke.mjs"
   },
   "engines": {
     "node": ">=20"

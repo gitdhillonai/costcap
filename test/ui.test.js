@@ -9,6 +9,8 @@ import { createHostedServer } from '../src/hosted/server.js';
 test('same-origin UI assets use CSP and no inline scripts or data HTML injection', () => {
   const html = uiResponse('/');
   assert.match(html.body, /FREE BETA/);
+  assert.match(html.body, /Billing is disabled/);
+  assert.ok(!/stripe/i.test(html.body));
   assert.match(html.body, /No card. No charges/);
   assert.match(html.body, /Only proxy-routed traffic/);
   assert.ok(html.headers['content-security-policy'].includes("frame-ancestors 'none'"));

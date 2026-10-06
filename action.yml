@@ -7,6 +7,12 @@ inputs:
   cap:
     description: Maximum estimated USD across the selected receipt file
     required: true
+  day-cap:
+    description: Optional UTC day cap in estimated USD
+    required: false
+  month-cap:
+    description: Optional UTC month cap in estimated USD
+    required: false
 runs:
   using: composite
   steps:
@@ -17,5 +23,11 @@ runs:
       env:
         COSTCAP_RECEIPTS: ${{ inputs.receipts }}
         COSTCAP_CAP: ${{ inputs.cap }}
+        COSTCAP_DAY_CAP: ${{ inputs.day-cap }}
+        COSTCAP_MONTH_CAP: ${{ inputs.month-cap }}
         COSTCAP_ACTION_PATH: ${{ github.action_path }}
-      run: node "$COSTCAP_ACTION_PATH/src/cli.js" check --receipts "$COSTCAP_RECEIPTS" --cap "$COSTCAP_CAP"
+      run: |
+        args=(check --receipts "$COSTCAP_RECEIPTS" --cap "$COSTCAP_CAP")
+        if [ -n "$COSTCAP_DAY_CAP" ]; then args+=(--day-cap "$COSTCAP_DAY_CAP"); fi
+        if [ -n "$COSTCAP_MONTH_CAP" ]; then args+=(--month-cap "$COSTCAP_MONTH_CAP"); fi
+        node "$COSTCAP_ACTION_PATH/src/cli.js" "${args[@]}"

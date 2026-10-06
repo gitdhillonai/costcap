@@ -22,15 +22,16 @@ export function createCapEngine({ caps = {}, history = [], now = () => new Date(
     if (!Number.isFinite(Date.parse(r.ts)) || (r.cost_usd !== null && (!Number.isFinite(r.cost_usd) || r.cost_usd < 0))) throw new Error("Invalid receipt history; reconcile before running");
   }
   let run = 0;
-  const uncertain = history.some((r) => r.cost_usd === null);
-  const entries = history.map((r) => ({ ts: new Date(r.ts), cost: r.cost_usd ?? 0 }));
+  let unknown = history.filter((r) => r.cost_usd === null).length;
+  // Null cost is unknown. It is omitted from sums so it is not treated as $0.
+  const entries = history.filter((r) => r.cost_usd !== null).map((r) => ({ ts: new Date(r.ts), cost: r.cost_usd }));
   const sum = (pred) => entries.filter(pred).reduce((a, e) => a + e.cost, 0);
 
   function spend() {
     const n = now();
     const day = sum((e) => e.ts.toISOString().slice(0, 10) === n.toISOString().slice(0, 10));
     const month = sum((e) => e.ts.toISOString().slice(0, 7) === n.toISOString().slice(0, 7));
-    return { run, day, month };
+    return { run, day, month, unknown };
   }
 
   return {
@@ -41,7 +42,7 @@ export function createCapEngine({ caps = {}, history = [], now = () => new Date(
     },
     // Returns null if the call may proceed, else a budget-exceeded descriptor.
     check() {
-      if (uncertain) return { scope: "accounting", cap: 0, spent: 0, reason: "unreconciled_receipt" };
+      if (unknown > 0) return { scope: "accounting", cap: 0, spent: 0, reason: "unreconciled_receipt" };
       const s = spend();
       for (const scope of ["run", "day", "month"]) {
         const cap = caps[scope];
@@ -52,8 +53,9 @@ export function createCapEngine({ caps = {}, history = [], now = () => new Date(
       return null;
     },
     record(receipt) {
-      run += receipt.cost_usd ?? 0;
-      entries.push({ ts: new Date(receipt.ts ?? now()), cost: receipt.cost_usd ?? 0 });
+      if (receipt.cost_usd === null) { unknown += 1; return; }
+      run += receipt.cost_usd;
+      entries.push({ ts: new Date(receipt.ts ?? now()), cost: receipt.cost_usd });
     },
   };
 }

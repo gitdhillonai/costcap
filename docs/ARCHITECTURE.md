@@ -46,5 +46,5 @@ Run actual repo checks, test failure/isolation cases, inspect rendered UI/artifa
 - Issue #17: Evaluate OpenClaw Enterprise as control-plane substrate (epic #16)
 - Issue #16: EPIC: Adopt OpenClaw Enterprise + engrams as the agent substrate (build ON, not from scratch)
 - Issue #15: Epic: distribution (M4)
-- Issue #14: Story: alerts (Resend email + Slack) + audit log
+- Issue #14: Story: alerts (Brevo email + Slack) + audit log
 - Issue #13: Story: agent enrollment + policy sync (offline = last-known)

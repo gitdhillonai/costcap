@@ -34,7 +34,7 @@ Runaway execution is the most expensive agent failure class: documented multi-ag
 
 - Org-first (engineering standards: no orphan users, company email -> company org, email verification + Turnstile).
 - Fleet view: every enrolled agent, its caps, live spend, kill/resume state.
-- Alerts: cap-approaching (80%), cap-hit, loop-detected, agent-silent - email (Resend) + Slack.
+- Alerts: cap-approaching (80%), cap-hit, loop-detected, agent-silent - email (Brevo) + Slack.
 - Central cap management: change caps for a fleet without redeploying agents (CLI phones home for policy when enrolled; offline = last-known policy, receipts sync on reconnect).
 - Audit log: who raised a cap, who killed an agent, when.
 - Trial: 14 days, no card. Churn safety: cancel anytime, CLI keeps working free forever.
@@ -42,7 +42,7 @@ Runaway execution is the most expensive agent failure class: documented multi-ag
 ## Engineering
 
 - TypeScript CLI on npm (`costcap`), Node 20+, single-command install. Mirrors NightlyQA's stack and build standards.
-- Hosted: Next.js on persooninc1 (Coolify, own DB+role on shared Postgres), Resend for mail, Stripe staging until launch. Work on main.
+- Hosted beta in this repo: one Node process, local JSON datastore, Brevo for mail, billing disabled. A Postgres migration and paid billing are not part of the running beta.
 - Creds to vault + private dotenv repo (costcap/.env.local); accounts/ dir; build time in prod footer; no repo links in footer.
 - Dogfood: our own agent fleet first - NightlyQA's nightly walks (already burns OpenAI nightly), Pictage evals, ShipReady sync jobs. Real receipts, real caps.
 

@@ -123,7 +123,6 @@ export function createMeteringProxy({ receiptsPath, upstreams = PROVIDERS, onRec
             // Unknown spend is never silently free. Stop subsequent calls.
             Object.assign(receipt, { model: requestedModel ?? "unknown", cost_usd: null, reason: "usage_unavailable" });
             accountingFailure = "Provider returned no usable token usage. Restart only after reconciling this request.";
-            velocity?.record(0);
           }
           emit(receipt);
           if (!res.destroyed) res.writeHead(upstreamRes.status, { "content-type": upstreamRes.headers.get("content-type") ?? "application/json" }).end(raw);

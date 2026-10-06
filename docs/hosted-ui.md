@@ -10,4 +10,4 @@ Receipt-based caps may overshoot by one accepted request. Freeze/resume is polic
 
 Deployment: retain /opt/costcap/data, apply the completed private env, build/recreate the Docker container, then check /health, /, /ui/config and a real challenge + email-code login. Local test challenges are fixture-only and never enabled by the production launcher.
 
-Local verification: `npm test` passes 73 tests. On a machine with Google Chrome, `node scripts/ui-browser-smoke.mjs` exercises the UI against a local-only challenge fixture and fake email transport: login, enrollment, XSS-safe agent name, caps, freeze/resume, revoke, logout. It sends no external email and does not alter production Turnstile behavior.
+Local verification command: `npm test`. On a machine with Google Chrome, `node scripts/ui-browser-smoke.mjs` exercises the UI against a local-only challenge fixture and fake email transport: login, enrollment, XSS-safe agent name, caps, freeze/resume, revoke, logout. It sends no external email and does not alter production Turnstile behavior.

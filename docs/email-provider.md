@@ -1,9 +1,8 @@
 # CostCap email provider
 
-COSTCAP_EMAIL_PROVIDER=brevo selects the free-tier provider explicitly. Set
-BREVO_API_KEY and a verified costcap.dev sender in COSTCAP_EMAIL_FROM. The
-Resend adapter remains supported with COSTCAP_EMAIL_PROVIDER=resend and
-RESEND_API_KEY. No silent provider fallback, no account upgrade, no bulk sends.
+Mail goes through Brevo only. Set COSTCAP_EMAIL_PROVIDER=brevo, BREVO_API_KEY,
+and a verified sender in COSTCAP_EMAIL_FROM. The process rejects any other
+provider. There is no second adapter and no silent fallback.
 
 Brevo free allowance is 300/day, with sending account approval required. Daily
 quota exhaustion can delay verification mail. Keep the free beta rate-limited.

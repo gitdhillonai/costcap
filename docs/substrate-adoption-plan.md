@@ -23,7 +23,7 @@ This does not turn the existing local spike into a substrate spike.
 | Policy delivery/offline | Authenticated client sync with persistent cache | None | Versioned cache and receipt sync |
 | Hosted org/auth | Email-code + Turnstile service, live login verified | None | Verified memberships and org roles |
 | Fleet view/caps | Same-origin fleet UI and tenant-scoped API | None | UI, API, tenant isolation |
-| Alert rules/delivery | Alert outbox and Brevo/Slack adapters; live alert routing not verified | None | Rule dedupe, Resend/Slack delivery |
+| Alert rules/delivery | Alert outbox and Brevo/Slack adapters; live alert routing not verified | None | Rule dedupe, Brevo/Slack delivery |
 | Hosted billing | Not implemented | None | Free beta until verified |
 | Remote runtime stop | Not implemented | Optional future OCE stop adapter | Authorization, acknowledgment and audit |
 | Build factory | Not a runtime CostCap component | Reject engrams as CostCap substrate | Existing development workflow |

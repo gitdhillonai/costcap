@@ -1,7 +1,7 @@
 import { createTransactionalEmail } from "./email.js";
-// Hosted delivery adapter. The caller must authorize recipients and configure
-// secrets. This module does not discover recipients or send during tests.
-export function createAlertDelivery({ resendKey, emailProvider = "resend", emailKey, emailFrom, emailTo, slackWebhook, fetchImpl = fetch } = {}) {
+// Hosted delivery adapter. The caller authorizes recipients and supplies secrets.
+// Tests pass a fake fetch. This module does not send by itself.
+export function createAlertDelivery({ emailKey, emailFrom, emailTo, slackWebhook, fetchImpl = fetch } = {}) {
   if (slackWebhook) {
     const url = new URL(slackWebhook);
     if (url.protocol !== "https:" || url.hostname !== "hooks.slack.com" || !url.pathname.startsWith("/services/")) throw new Error("Slack webhook must use hooks.slack.com/services over HTTPS");
@@ -13,9 +13,9 @@ export function createAlertDelivery({ resendKey, emailProvider = "resend", email
   return async (alert) => {
     const text = `CostCap ${alert.kind}: agent ${alert.agentId ?? "unknown"}${alert.scope ? `, ${alert.scope}` : ""}. Estimated spend guardrails, not a billing guarantee.`;
     const results = [];
-    if ((emailKey || resendKey) && emailFrom && emailTo?.length) {
+    if (emailKey && emailFrom && emailTo?.length) {
       try {
-        await createTransactionalEmail({ provider: emailProvider, apiKey: emailKey || resendKey, from: emailFrom, fetchImpl })({ to: emailTo, subject: `CostCap: ${alert.kind}`, text });
+        await createTransactionalEmail({ apiKey: emailKey, from: emailFrom, fetchImpl })({ to: emailTo, subject: `CostCap: ${alert.kind}`, text });
         results.push({ channel: "email", status: "accepted" });
       } catch (err) { results.push({ channel: "email", status: "failed", error: err.message }); }
     } else results.push({ channel: "email", status: "unconfigured" });

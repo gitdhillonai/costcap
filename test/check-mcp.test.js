@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -14,7 +14,13 @@ function ledger(costs) {
 test("CI budget checks fail closed for unknown, malformed or missing evidence", () => {
   assert.equal(checkBudget({ receiptsPath: ledger([0.1]), caps: { run: 1 } }).ok, true);
   assert.equal(checkBudget({ receiptsPath: ledger([0.1]), caps: { run: 0.1 } }).ok, false);
-  assert.equal(checkBudget({ receiptsPath: ledger([null]), caps: { run: 1 } }).ok, false);
+  const unknown = checkBudget({ receiptsPath: ledger([1.5, null]), caps: { run: 10 }, now: () => new Date("2026-10-04T18:00:00Z") });
+  assert.equal(unknown.ok, false);
+  assert.equal(unknown.unknown_cost_count, 1);
+  assert.equal(unknown.unknown_cost_counted_as_zero, false);
+  assert.equal(unknown.total_usd, 1.5);
+  assert.equal(unknown.spend.unknown, 1);
+  assert.equal(unknown.spend.day, 1.5);
   assert.throws(() => checkBudget({ receiptsPath: ledger([]) }), /No receipts/);
   assert.throws(() => checkBudget({ receiptsPath: ledger([-1]) }), /Invalid/);
 });
@@ -33,6 +39,13 @@ test("MCP supports initialize, tool listing and read-only budget status", () => 
   assert.equal(JSON.parse(call("tools/call", { name: "budget_status" }).result.content[0].text).ok, true);
   assert.equal(call("tools/call", { name: "kill" }).error.code, -32601);
   assert.equal(handleMcp({ jsonrpc: "2.0", method: "notifications/initialized" }, options), null);
+});
+test("composite action runs the local check command", () => {
+  const text = readFileSync(new URL("../action.yml", import.meta.url), "utf8");
+  assert.match(text, /src\/cli\.js/);
+  assert.match(text, /check/);
+  assert.match(text, /day-cap/);
+  assert.match(text, /month-cap/);
 });
 test("MCP stdio handles malformed lines without crashing", () => {
   const path = ledger([0.1]);

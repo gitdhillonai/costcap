@@ -19,7 +19,7 @@ Draft. Nothing here is deployed. The hosted stack depends on epic #16 (adopt Ope
 
 ## #14 Alerts + audit log
 - Rules: cap_approaching (80%), cap_hit, loop_detected, agent_silent (default 6h). Fire once, re-arm after clearing (src/hosted/alerts.js).
-- Channels: Resend email to org admins, Slack webhook per org. Missing delivery is logged, never silent.
+- Channels: Brevo email to the configured alert recipients, Slack webhook per configured org. Missing delivery is logged, never silent. Billing stays disabled.
 - Audit log is append-only: who raised a cap, who killed an agent, when (auditEntry).
 - Copy everywhere: guardrails, not guarantees.
 

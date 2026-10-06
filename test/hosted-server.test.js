@@ -72,6 +72,20 @@ test("verified org-first login, tenant isolation, enrollment, receipt sync and r
   assert.equal((await f.request("/v1/fleet", undefined, owner.cookie)).status, 401);
 });
 
+test("billing stays disabled and there is no charge route", async (t) => {
+  const f = await fixture(t);
+  const health = await f.request("/health");
+  assert.equal(health.status, 200);
+  assert.equal(health.body.billing, "disabled");
+  assert.equal(health.body.beta, true);
+  assert.equal(health.body.persistence, "single-process-file");
+  const owner = await f.login("billing@example.invalid");
+  const fleet = await f.request("/v1/fleet", undefined, owner.cookie);
+  assert.equal(fleet.body.billing, "disabled");
+  assert.equal((await f.request("/billing")).status, 404);
+  assert.equal((await f.request("/stripe/checkout", {})).status, 404);
+});
+
 test("verification wrong-code attempt limit persists and challenge is one-use", async (t) => {
   const f = await fixture(t);
   const challenge = await f.request("/auth/request", { email: "attempt@example.invalid", turnstileToken: "test-pass" });

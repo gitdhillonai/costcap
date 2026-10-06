@@ -9,9 +9,11 @@ billing disabled. No marketplace or npm release is implied.
 - TLS ingress, COSTCAP_ORIGIN exact HTTPS origin, persistent writable /data
   volume owned by container UID 1000. Health route GET /health. PORT defaults 3000.
 - TURNSTILE_SECRET_KEY and hostname-matched Turnstile validation required.
-- RESEND_API_KEY and COSTCAP_EMAIL_FROM required. Live sends require verified
+  TURNSTILE_SITE_KEY is public and is returned by GET /ui/config.
+- COSTCAP_EMAIL_PROVIDER=brevo, BREVO_API_KEY and COSTCAP_EMAIL_FROM required.
+  The launcher rejects any other mail provider. Live sends require a verified
   sending domain and authorized transactional-email scope. No sends occurred
-  during development. Alert mail destination and Slack webhook are deployment
+  during this change. Alert mail destination and Slack webhook are deployment
   configuration and COSTCAP_ALERT_ORG_ID must match the explicitly authorized org,
   not inferred from owner profiles or repository documents.
 - Optional COSTCAP_ALERT_EMAILS comma-separated recipients and
@@ -31,6 +33,25 @@ billing disabled. No marketplace or npm release is implied.
   changed content returns 409. Receipt trust is agent-reported, not billing proof.
 - Alert sweeps once per minute with dedupe, retry and delivery audit. HTTP
   accepted is not confirmed inbox delivery. Unknown costs stay unknown.
+
+## What the push/deploy agent must provision
+
+This repo change does not deploy, change DNS, or create a volume. The image
+needs all of the following before a new container can replace the running one:
+
+- One replica only. Do not scale the JSON datastore horizontally.
+- A persistent writable volume mounted at `/data`, owned by container UID 1000,
+  surviving recreate. `COSTCAP_STORE_PATH` defaults to `/data/costcap.json`.
+  Volume backup and restore are not proven by the tests in this repo.
+- TLS ingress in front of `PORT` (default 3000). `COSTCAP_ORIGIN` must be the
+  exact public HTTPS origin. The health check inside the image calls
+  `GET /health` on 127.0.0.1.
+- `TURNSTILE_SECRET_KEY` and `TURNSTILE_SITE_KEY` for that hostname.
+- `BREVO_API_KEY` and `COSTCAP_EMAIL_FROM` for a verified Brevo sender.
+  Do not set a Resend key. The process will not start with another provider.
+- Optional `COSTCAP_ALERT_EMAILS`, `COSTCAP_SLACK_WEBHOOK`, and
+  `COSTCAP_ALERT_ORG_ID` only when that org was explicitly authorized.
+- Names and empty values are listed in `env.example`. Secrets stay out of git.
 
 ## Still required before acceptance
 
