@@ -5,6 +5,7 @@
 // Guardrails, not guarantees: only traffic through the proxy is metered.
 
 import { checkBudget } from "./check.js";
+import { reconcileFiles } from "./reconcile.js";
 import { serveMcp } from "./mcp.js";
 import { enroll, createFleetClient } from "./hosted/client.js";
 import { resolvePolicy } from "./hosted/policy.js";
@@ -122,6 +123,16 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const option = (name) => { const i = rest.indexOf(name); return i >= 0 ? rest[i + 1] : undefined; };
     enroll({ url: option("--url"), name: option("--name"), token: process.env.COSTCAP_ENROLL_TOKEN, path: option("--enrollment") ?? ".costcap/enrollment.json" })
       .then(({ agentId }) => console.error(`costcap: enrolled ${agentId}. Use --enrollment with wrap.`), (e) => { console.error(`costcap: ${e.message}`); process.exitCode = 2; });
+  } else if (cmd === "reconcile") {
+    try {
+      const option = (name) => { const i = rest.indexOf(name); return i >= 0 ? rest[i + 1] : undefined; };
+      const receiptsPath = option("--receipts");
+      const providerPath = option("--provider");
+      if (!receiptsPath || !providerPath) throw new Error("usage: costcap reconcile --receipts FILE --provider FILE");
+      const result = reconcileFiles({ receiptsPath, providerPath });
+      console.log(JSON.stringify(result));
+      process.exitCode = result.ok ? 0 : 1;
+    } catch (err) { console.error(`costcap: ${err.message}`); process.exitCode = 2; }
   } else if (cmd === "kill") {
     const i = rest.indexOf("--kill-file");
     const file = i >= 0 ? rest[i + 1] : DEFAULT_KILL_FILE;
@@ -133,7 +144,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const file = i >= 0 ? rest[i + 1] : DEFAULT_KILL_FILE;
     console.error(resume(file) ? "costcap: resumed." : "costcap: nothing to resume (not killed).");
   } else {
-    console.error("usage: costcap wrap [--cap USD] -- <command...> | costcap kill [note] | costcap resume");
+    console.error("usage: costcap wrap [--cap USD] -- <command...> | costcap check | costcap reconcile --receipts FILE --provider FILE | costcap kill [note] | costcap resume");
     process.exit(2);
   }
 }

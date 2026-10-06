@@ -27,6 +27,9 @@ const { server, evaluateFleetAlerts } = createHostedServer({
     // Deployment requires owner-approved transactional-email identity/scope.
     await sendEmail({ to: [email], subject: "CostCap sign-in code", text: `Your CostCap code is ${code}. It expires in 10 minutes. If you did not request it, ignore it.` });
   },
+  sendInvite: async ({ email, role, orgName }) => {
+    await sendEmail({ to: [email], subject: "CostCap organization invitation", text: `You were invited to the ${orgName} CostCap organization as ${role}. Sign in with this email address. The invitation expires in 7 days. If you did not expect it, ignore it. Guardrails, not guarantees.` });
+  },
   deliverAlert: (alert) => authorizedOrg && alert.orgId === authorizedOrg ? delivery(alert) : [{ status: "unconfigured" }],
 });
 let alertRunning = false;

@@ -6,12 +6,12 @@ import { join } from "node:path";
 import { createHostedServer } from "../src/hosted/server.js";
 
 async function fixture(t) {
-  let code, delivery = [], failDelivery = false;
+  let code, delivery = [], failDelivery = false, invites = [], failInvite = false;
   const storePath = join(mkdtempSync(join(tmpdir(), "cc-service-")), "store.json");
   let service;
   const origin = "http://localhost";
   const start = async () => {
-    service = createHostedServer({ storePath, origin, secureCookies: false, verifyChallenge: async (value) => value === "test-pass", sendCode: async (data) => { code = data.code; }, deliverAlert: async (a) => { delivery.push(a); return [{ status: failDelivery ? "failed" : "accepted" }]; } });
+    service = createHostedServer({ storePath, origin, secureCookies: false, verifyChallenge: async (value) => value === "test-pass", sendCode: async (data) => { code = data.code; }, sendInvite: async (data) => { if (failInvite) throw new Error("mail down"); invites.push(data); }, deliverAlert: async (a) => { delivery.push(a); return [{ status: failDelivery ? "failed" : "accepted" }]; } });
     await new Promise((r) => service.server.listen(0, "127.0.0.1", r));
   };
   await start();
@@ -27,7 +27,7 @@ async function fixture(t) {
     assert.equal(r.status, 200);
     return r;
   };
-  return { request, login, service: () => service, delivery, setFail: (v) => { failDelivery = v; }, restart: async () => { service.server.closeAllConnections(); await new Promise((r) => service.server.close(r)); await start(); } };
+  return { request, login, service: () => service, delivery, invites: () => invites, setFail: (v) => { failDelivery = v; }, setInviteFail: (v) => { failInvite = v; }, restart: async () => { service.server.closeAllConnections(); await new Promise((r) => service.server.close(r)); await start(); } };
 }
 
 test("verified org-first login, tenant isolation, enrollment, receipt sync and restart", async (t) => {
@@ -84,6 +84,43 @@ test("billing stays disabled and there is no charge route", async (t) => {
   assert.equal(fleet.body.billing, "disabled");
   assert.equal((await f.request("/billing")).status, 404);
   assert.equal((await f.request("/stripe/checkout", {})).status, 404);
+});
+
+test("an invitation joins that org and a viewer cannot change policy or invite", async (t) => {
+  const f = await fixture(t);
+  const owner = await f.login("owner@example.invalid");
+  assert.equal((await f.request("/v1/invitations", { email: "not-an-email", role: "viewer" }, owner.cookie)).status, 400);
+  assert.equal((await f.request("/v1/invitations", { email: "viewer@example.invalid", role: "owner" }, owner.cookie)).status, 400);
+  const invited = await f.request("/v1/invitations", { email: "viewer@example.invalid", role: "viewer" }, owner.cookie);
+  assert.equal(invited.status, 201);
+  assert.equal(f.invites().length, 1);
+  assert.equal(f.invites()[0].orgName, "example.invalid");
+  assert.equal((await f.request("/v1/invitations", { email: "viewer@example.invalid", role: "viewer" }, owner.cookie)).status, 409);
+  const stranger = await f.login("stranger@example.invalid");
+  assert.notEqual(stranger.body.orgId, owner.body.orgId);
+  const viewer = await f.login("viewer@example.invalid");
+  assert.equal(viewer.body.orgId, owner.body.orgId);
+  assert.equal(viewer.body.role, "viewer");
+  const fleet = await f.request("/v1/fleet", undefined, viewer.cookie);
+  assert.equal(fleet.body.role, "viewer");
+  assert.equal(fleet.body.invitations.length, 0);
+  assert.equal((await f.request("/v1/enrollment-tokens", { caps: { day: 1 } }, viewer.cookie)).status, 403);
+  assert.equal((await f.request("/v1/invitations", { email: "other@example.invalid", role: "viewer" }, viewer.cookie)).status, 403);
+  const enrollment = await f.request("/v1/enrollment-tokens", { caps: { day: 1 } }, owner.cookie);
+  const agent = await f.request("/v1/enroll", { name: "worker" }, null, enrollment.body.token);
+  assert.equal((await f.request(`/v1/agents/${agent.body.agentId}/policy`, { killed: true }, viewer.cookie)).status, 403);
+  const ownerFleet = await f.request("/v1/fleet", undefined, owner.cookie);
+  assert.equal(ownerFleet.body.invitations.length, 0);
+  const pending = await f.request("/v1/invitations", { email: "later@example.invalid", role: "admin" }, owner.cookie);
+  assert.equal(pending.status, 201);
+  assert.equal((await f.request(`/v1/invitations/${pending.body.id}/revoke`, {}, owner.cookie)).status, 200);
+  const later = await f.login("later@example.invalid");
+  assert.notEqual(later.body.orgId, owner.body.orgId);
+  assert.equal(later.body.role, "owner");
+  f.setInviteFail(true);
+  assert.equal((await f.request("/v1/invitations", { email: "second@example.invalid", role: "admin" }, owner.cookie)).status, 503);
+  assert.equal((await f.request("/v1/fleet", undefined, owner.cookie)).body.invitations.length, 0);
+  assert.equal((await f.request("/v1/invitations", { email: "owner@example.invalid", role: "admin" }, owner.cookie)).status, 409);
 });
 
 test("verification wrong-code attempt limit persists and challenge is one-use", async (t) => {

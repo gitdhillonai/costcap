@@ -47,9 +47,11 @@ CostCap. The local proxy binds to 127.0.0.1.
 Receipts include unique IDs, timestamp, model, usage, versioned estimated cost,
 and blocked reasons. No request bodies or authorization headers are written.
 
-Hosted fleet auth, policy delivery, email/Slack delivery, npm publication,
-marketplace distribution, deployment and two-week dogfood remain open backlog.
-`src/hosted/*` contains local logic, not a deployed dashboard.
+The local CLI is covered by `npm test`. The hosted beta at the configured
+origin serves the fleet UI with billing disabled. Live email login, live alert
+delivery, npm publication, marketplace distribution, and two-week dogfood are
+not certified by this repository's tests. `costcap reconcile` compares a local
+receipt file with a provider charge file and does not call a provider.
 
 ## Enrollment client (service not yet deployed)
 

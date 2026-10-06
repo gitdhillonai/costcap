@@ -4,7 +4,7 @@ The same-origin root page serves email-code login with the configured production
 
 Set TURNSTILE_SITE_KEY as well as TURNSTILE_SECRET_KEY. The public key is returned from /ui/config; the secret never reaches the browser. CSP allows only this site's scripts and Cloudflare's challenge script/frame. API session cookies remain HttpOnly, Secure and SameSite=Strict. No enrollment token or session data is stored in browser storage. Fleet fields render with textContent, not HTML.
 
-New emails create separate organizations. Shared email domains are not membership proof. Invite/member management is not yet implemented. Deployment remains exactly one process with a persistent JSON store, not Postgres or a high-availability service. Alerts need a separately configured owner-approved destination. Provider-bill reconciliation, streaming UX and two weeks of fleet dogfood remain separate acceptance work.
+New emails create separate organizations. Shared email domains are not membership proof. Owners and admins can invite an email address; that person joins only after verifying the invited address. Viewers can read the fleet and cannot change it. Deployment remains exactly one process with a persistent JSON store, not Postgres or a high-availability service. Alerts need a separately configured owner-approved destination. Provider-bill reconciliation, streaming UX and two weeks of fleet dogfood remain separate acceptance work.
 
 Receipt-based caps may overshoot by one accepted request. Freeze/resume is policy sync: offline agents retain the last-known policy and cannot receive a new remote freeze until reconnecting. Only proxy-routed traffic is enforced. The dashboard shows synced reported costs and separately counts unknown-cost receipts; it is not a provider bill.
 

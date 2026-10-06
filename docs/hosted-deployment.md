@@ -23,7 +23,10 @@ billing disabled. No marketplace or npm release is implied.
 - Auth: POST /auth/request with email/turnstileToken, POST /auth/verify with
   challengeId/code. HttpOnly SameSite Strict cookies, exact Origin checks on
   browser mutations. New verified email creates its own org; matching domains
-  alone never join an existing org. Invitations/teams are not implemented.
+  alone never join an existing org. An owner or admin can invite an email as
+  admin or viewer. The invited person joins that org only after verifying that
+  same email. A failed invitation email is not left pending. Viewers can read
+  the fleet and cannot change caps, kill, revoke, enroll, or invite.
 - Verified owners can issue one-use 10-minute enrollment tokens. Agent bearer
   credentials can only read their policy and submit their own receipts.
 - POST /v1/agents/{id}/policy modifies caps/killed state with atomic versions;

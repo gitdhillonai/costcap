@@ -89,13 +89,15 @@ const rows = [
   ["Alert rules", "alerts: approaching, hit, loop, silent", "local"],
   ["Single-process JSON datastore", "durable transactions roll back on failure and reopen without loss", "store"],
   ["Runaway acceptance command", "acceptance file", "acceptance"],
+  ["Organization invitations", "an invitation joins that org and a viewer cannot change policy or invite", "local"],
+  ["Receipt and provider charge reconciliation", "reconciliation does not treat unknown or missing provider cost as zero", "local"],
 ];
 
 const blocked = [
   ["Live email-code login", "TURNSTILE_SECRET_KEY and a Brevo inbox were not used. This run did not submit a live challenge or read a mailbox."],
   ["Live alert delivery", "BREVO_API_KEY and an authorized COSTCAP_ALERT_ORG_ID recipient were not used. No live mail or Slack message was sent."],
   ["Postgres datastore", "No Postgres instance is provisioned for this beta. Live /health reports persistence single-process-file."],
-  ["Team invitations", "Not implemented. The beta contract creates a new org per verified email and does not join by domain."],
+  ["Live provider charge download", "No provider billing API credential is configured. costcap reconcile reads a local charge file only."],
   ["Paid billing", "Billing is disabled. No Stripe secret is configured. POST /billing on the live host is not a checkout."],
   ["npm publication", "npm publish was not run."],
   ["GitHub Marketplace listing", "No marketplace release was published."],

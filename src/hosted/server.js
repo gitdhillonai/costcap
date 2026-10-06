@@ -10,7 +10,7 @@ const token = () => randomBytes(32).toString("base64url");
 const fail = (status, message) => { const err = new Error(message); err.status = status; throw err; };
 const audit = (s, orgId, actor, action, target, detail = {}) => s.audit.push(auditEntry({ orgId, actor, action, target, detail }));
 
-export function createHostedServer({ storePath, verifyChallenge, sendCode, deliverAlert,
+export function createHostedServer({ storePath, verifyChallenge, sendCode, sendInvite, deliverAlert,
   now = () => Date.now(), secureCookies = true, origin, turnstileSiteKey = "", bodyLimit = 256_000 } = {}) {
   if (!storePath || !verifyChallenge || !sendCode || !origin) throw new Error("Store, origin, Turnstile verifier and authorized code sender required");
   const store = openStore(storePath);
@@ -73,11 +73,21 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, deliv
           delete s.challenges[challengeHash];
           let user = Object.values(s.users).find((u) => u.email === challenge.email);
           if (!user) {
-            const orgId = randomUUID(), id = randomUUID();
-            s.orgs[orgId] = { id: orgId, name: challenge.email.split("@")[1], created: now() };
-            user = { id, email: challenge.email, orgId, role: "owner", verified: true };
-            s.users[id] = user;
-            audit(s, orgId, id, "org.create", orgId);
+            s.invitations ??= {};
+            const invite = Object.values(s.invitations).filter((item) => item.email === challenge.email && item.expires > now()).sort((a, b) => b.expires - a.expires)[0];
+            const id = randomUUID();
+            if (invite && ["admin", "viewer"].includes(invite.role) && s.orgs[invite.orgId]) {
+              user = { id, email: challenge.email, orgId: invite.orgId, role: invite.role, verified: true };
+              s.users[id] = user;
+              delete s.invitations[invite.id];
+              audit(s, invite.orgId, id, "invitation.accept", invite.id, { role: invite.role });
+            } else {
+              const orgId = randomUUID();
+              s.orgs[orgId] = { id: orgId, name: challenge.email.split("@")[1], created: now() };
+              user = { id, email: challenge.email, orgId, role: "owner", verified: true };
+              s.users[id] = user;
+              audit(s, orgId, id, "org.create", orgId);
+            }
           }
           s.sessions[hashToken(sessionToken)] = { userId: user.id, expires: now() + 24 * 3600_000 };
           return { id: user.id, orgId: user.orgId, role: user.role };
@@ -146,8 +156,45 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, deliv
           const u = sessionUser(s, req);
           return { agents: Object.values(s.agents).filter((a) => a.orgId === u.orgId).map(({ hash, ...a }) => a),
             receipts: Object.values(s.receipts).filter((r) => r.orgId === u.orgId),
-            audit: s.audit.filter((e) => e.org_id === u.orgId), alerts: Object.values(s.alerts).filter((a) => a.orgId === u.orgId), beta: true, billing: "disabled" };
+            audit: s.audit.filter((e) => e.org_id === u.orgId), alerts: Object.values(s.alerts).filter((a) => a.orgId === u.orgId),
+            role: u.role, invitations: ["owner", "admin"].includes(u.role) ? Object.values(s.invitations ?? {}).filter((item) => item.orgId === u.orgId && item.expires > now()).map(({ invitedBy, ...item }) => item) : [],
+            beta: true, billing: "disabled" };
         }));
+      }
+      if (path === "/v1/invitations" && req.method === "POST") {
+        const email = typeof body.email === "string" ? body.email.toLowerCase().trim() : "";
+        if (!/^[^\s@]{1,100}@[^\s@]{1,150}\.[^\s@]{2,40}$/.test(email)) fail(400, "Valid email required");
+        if (!["admin", "viewer"].includes(body.role)) fail(400, "Role must be admin or viewer");
+        if (!sendInvite) fail(503, "Invitation delivery unavailable");
+        const id = randomUUID();
+        const created = store.transaction((s) => {
+          s.invitations ??= {};
+          const user = admin(s, req);
+          if (Object.values(s.users).some((u) => u.email === email)) fail(409, "That email already has an account");
+          const pending = Object.values(s.invitations).filter((item) => item.orgId === user.orgId && item.expires > now());
+          if (pending.some((item) => item.email === email)) fail(409, "An invite is already pending for that email");
+          if (pending.length >= 20) fail(429, "Too many pending invitations");
+          s.invitations[id] = { id, email, orgId: user.orgId, role: body.role, expires: now() + 7 * 24 * 3600_000, invitedBy: user.id };
+          audit(s, user.orgId, user.id, "invitation.issue", id, { email, role: body.role });
+          return { orgName: s.orgs[user.orgId].name };
+        });
+        try { await sendInvite({ email, role: body.role, orgName: created.orgName }); }
+        catch {
+          store.transaction((s) => { delete s.invitations?.[id]; });
+          fail(503, "Invitation delivery unavailable");
+        }
+        return json(201, { id, email, role: body.role, expiresInSeconds: 7 * 24 * 3600 });
+      }
+      const inviteRevoke = /^\/v1\/invitations\/([^/]+)\/revoke$/.exec(path);
+      if (inviteRevoke && req.method === "POST") {
+        store.transaction((s) => {
+          const user = admin(s, req);
+          const invite = s.invitations?.[inviteRevoke[1]];
+          if (!invite || invite.orgId !== user.orgId) fail(404, "Invitation not found");
+          delete s.invitations[invite.id];
+          audit(s, user.orgId, user.id, "invitation.revoke", invite.id);
+        });
+        return json(200, { revoked: true });
       }
       const update = /^\/v1\/agents\/([^/]+)\/(policy|revoke)$/.exec(path);
       if (update && req.method === "POST") {
