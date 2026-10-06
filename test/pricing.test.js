@@ -33,3 +33,10 @@ test("zero usage costs zero but still pins the table version", () => {
   assert.equal(r.fallback, true);
   assert.equal(r.table_version, TABLE_VERSION);
 });
+
+test("dated snapshot ids price as their base model, not the fallback", () => {
+  const p = lookupPrice("gpt-4o-mini-2024-07-18");
+  assert.equal(p.fallback, false);
+  assert.equal(p.input, 0.15);
+  assert.equal(lookupPrice("gpt-99-ultra-2026-01-01").fallback, true);
+});
