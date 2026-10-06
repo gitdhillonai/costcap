@@ -1,14 +1,11 @@
 # Wrapping NightlyQA's nightly run with CostCap (M1 dogfood recipe)
 
-Status: draft for review. Nothing here has been run against NightlyQA or deployed.
+Status: deployment recipe. NightlyQA source prerequisite verified; runner installation and actual fleet receipts remain unverified.
 
-## Why a code change is needed first
-NightlyQA calls OpenAI with a hardcoded URL (`src/llm.js` line 10: `fetch('https://api.openai.com/v1/chat/completions', ...)`). CostCap meters by rewriting the provider base URL, so traffic bypasses it today. One-line change in gitdhillonai/nightlyqa `src/llm.js`:
+## Current prerequisite status
+Live NightlyQA main inspected 2026-10-05: src/llm.js now uses OPENAI_BASE_URL with the existing OpenAI default and throws LlmBlocked for budget_exceeded, killed, spiral_detected and breaker_open. The original hardcoded URL prerequisite is fixed. This source check does not prove the runner is wrapped or receipts are being retained.
 
-    const OPENAI_BASE = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
-    ... fetch(`${OPENAI_BASE}/chat/completions`, ...)
-
-Behaviour is unchanged when the variable is unset.
+Deployment is coordinated with NightlyQA's owner lane. Do not start extra paid runs to manufacture evidence. Wrap the already-authorized nightly workload and keep its receipt ledger on the persistent volume. The two-week clock starts with actual retained fleet receipts, not the date of this recipe.
 
 ## Wrap command
 CostCap sets `OPENAI_BASE_URL=http://127.0.0.1:<port>/openai/v1` for the child.
