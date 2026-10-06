@@ -11,7 +11,9 @@ const table = JSON.parse(readFileSync(tablePath, "utf8"));
 export const TABLE_VERSION = table.version;
 
 export function lookupPrice(model) {
-  const entry = table.models[model];
+  // OpenAI returns dated snapshot ids (gpt-4o-mini-2024-07-18); price them as their base model.
+  const base = typeof model === "string" ? model.replace(/-\d{4}-\d{2}-\d{2}$/, "") : model;
+  const entry = table.models[model] ?? table.models[base];
   if (entry) return { model, ...entry, table_version: table.version, fallback: false };
   return { model, ...table.fallback, table_version: table.version, fallback: true };
 }
