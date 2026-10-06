@@ -1,6 +1,6 @@
 # Substrate adoption plan
 
-2026-10-04. Plan only. Inputs: `openclaw-enterprise-evaluation.md`,
+2026-10-05 update. Plan plus current implementation status. Inputs: `openclaw-enterprise-evaluation.md`,
 `engrams-evaluation.md`, `substrate-decision.md` and current source.
 
 Current source review and public-page recheck support keeping the local
@@ -19,16 +19,16 @@ This does not turn the existing local spike into a substrate spike.
 | Local kill/resume | src/kill.js | None | Shared file and child polling |
 | CLI lifecycle | src/cli.js | None | SDK env routing and local ledger lock |
 | Receipts/audit | Proxy ledger, planned hosted DB | None | Cost receipt schema and append-only audit |
-| Enrollment/identity | src/hosted/policy.js logic; no service | None | Agent tokens and tenant authorization |
-| Policy delivery/offline | resolvePolicy logic; no transport | None | Versioned cache and receipt sync |
-| Hosted org/auth | Planned service | None | Verified memberships and org roles |
-| Fleet view/caps | Planned dashboard | None | UI, API, tenant isolation |
-| Alert rules/delivery | src/hosted/alerts.js logic; no delivery | None | Rule dedupe, Resend/Slack delivery |
+| Enrollment/identity | Hosted durable single-process API and policy validation | None | Agent tokens and tenant authorization |
+| Policy delivery/offline | Authenticated client sync with persistent cache | None | Versioned cache and receipt sync |
+| Hosted org/auth | Email-code + Turnstile service, live login verified | None | Verified memberships and org roles |
+| Fleet view/caps | Same-origin fleet UI and tenant-scoped API | None | UI, API, tenant isolation |
+| Alert rules/delivery | Alert outbox and Brevo/Slack adapters; live alert routing not verified | None | Rule dedupe, Resend/Slack delivery |
 | Hosted billing | Not implemented | None | Free beta until verified |
 | Remote runtime stop | Not implemented | Optional future OCE stop adapter | Authorization, acknowledgment and audit |
 | Build factory | Not a runtime CostCap component | Reject engrams as CostCap substrate | Existing development workflow |
-| CI budget check/Action | Planned distribution | None | Local receipt validation and exit codes |
-| MCP budget API | Planned distribution | None | Read-only budget exposure |
+| CI budget check/Action | Implemented Action/check; publication unverified | None | Local receipt validation and exit codes |
+| MCP budget API | Implemented Action/check; publication unverified | None | Implemented read-only MCP; ecosystem listing unverified |
 
 ## Adoption order and seams
 
@@ -68,3 +68,5 @@ The optional OCE adapter remains a future integration, not a replacement.
 The two prior evaluations contain broader claims that were not all rechecked.
 Do not read absence in these pages as proof that a feature does not exist.
 Epic #16's actual chosen-substrate spike criterion is not met by these docs.
+
+Current deployed proof: production Turnstile, Brevo sign-in-code delivery to the owner-authorized test account, code verification, fleet HTTP 200 and logout HTTP 401 passed on October 5. This proves hosted login, not provider billing reconciliation or an OCE substrate spike. UI remains free beta and single-process file storage.
