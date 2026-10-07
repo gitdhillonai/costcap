@@ -103,3 +103,11 @@ See `.env.example`. Pull real values with `bash scripts/pull-secrets.sh`.
 
 Deployed via Coolify on the Hetzner box (Path A) on push to `main`.
 Rollback: Coolify dashboard → Deployments → redeploy previous, or `git revert`.
+
+<!-- iac-gaps -->
+
+## Testing
+
+```bash
+npm test
+```
