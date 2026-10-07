@@ -1,0 +1,8 @@
+{
+  "zone": "costcap.dev",
+  "note": "Desired records for the existing zone. This file is not applied.",
+  "records": [
+    { "name": "@", "type": "A" },
+    { "name": "app", "type": "CNAME" }
+  ]
+}
