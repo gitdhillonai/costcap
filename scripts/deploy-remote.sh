@@ -12,10 +12,35 @@ if [ ${#SHA} -ne 40 ]; then
 fi
 ROOT=/opt/costcap
 cd "$ROOT/src"
+# Quote every value. The host file can contain an address like Name <box@domain>, which is not valid to source.
+python3 - "$ROOT/.env" <<'PY'
+import pathlib, shlex, sys
+need = ["COSTCAP_ORIGIN", "TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY", "BREVO_API_KEY", "COSTCAP_EMAIL_FROM", "COSTCAP_EMAIL_PROVIDER"]
+have = {}
+for line in pathlib.Path(sys.argv[1]).read_text().splitlines():
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#") or "=" not in stripped:
+        continue
+    key, value = stripped.split("=", 1)
+    have[key] = value
+missing = [key for key in need if not have.get(key)]
+if missing:
+    print("deploy: missing " + ", ".join(missing), file=sys.stderr)
+    raise SystemExit(2)
+if have["COSTCAP_EMAIL_PROVIDER"] != "brevo":
+    print("deploy: COSTCAP_EMAIL_PROVIDER must be brevo", file=sys.stderr)
+    raise SystemExit(2)
+if not have["COSTCAP_ORIGIN"].startswith("https://"):
+    print("deploy: COSTCAP_ORIGIN must be https", file=sys.stderr)
+    raise SystemExit(2)
+lines = [f"export {key}={shlex.quote(have[key])}" for key in need]
+pathlib.Path("/tmp/costcap-env.sh").write_text("\n".join(lines) + "\n")
+PY
 set -a
 # shellcheck disable=SC1091
-. "$ROOT/.env"
+. /tmp/costcap-env.sh
 set +a
+rm -f /tmp/costcap-env.sh
 export COSTCAP_GIT_SHA="$SHA"
 if docker image inspect costcap:1 >/dev/null 2>&1; then
   docker tag costcap:1 costcap:previous
