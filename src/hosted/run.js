@@ -4,6 +4,7 @@ import { createAlertDelivery } from "./delivery.js";
 import { verifyProductionChallenge } from "./turnstile.js";
 const required = (key) => { if (!process.env[key]) throw new Error(`${key} required`); return process.env[key]; };
 if (process.env.COSTCAP_TURNSTILE_FIXTURE || process.env.COSTCAP_EMAIL_FIXTURE) throw new Error("Production launcher rejects test fixtures");
+if (process.env.COSTCAP_BILLING) throw new Error("Billing stays disabled until a Stripe readback exists");
 const origin = required("COSTCAP_ORIGIN");
 if (new URL(origin).protocol !== "https:") throw new Error("Production origin must be HTTPS");
 const turnstileKey = required("TURNSTILE_SECRET_KEY");

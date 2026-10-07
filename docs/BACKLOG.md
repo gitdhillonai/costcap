@@ -30,8 +30,8 @@ GitHub issues are the source of truth. This file is the index as of 2026-10-07.
 | #46 Compose deploy gate | P0 | closed on verify run 37637693974 | no |
 | #47 npm pack gate | P0 | closed on verify run 37638206551 | no |
 | #48 canary command | P0 | closed on verify run 37638496816 | no |
-| #49 Postgres migrations in CI | P1 | in progress | next after its verify job is green |
-| #50 billing guard | P1 | ready | after the P0 code-complete stories |
+| #49 Postgres migrations in CI | P1 | closed on verify run 37638742657 | no |
+| #50 billing guard | P1 | in progress | next after its verify job is green |
 | #51 DNS fail-closed workflow | P2 | ready | after the P1 code-complete stories |
 | #52 live-proof shell | P2 | ready | after the P1 code-complete stories |
 
