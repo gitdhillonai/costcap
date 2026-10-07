@@ -40,11 +40,9 @@ Run actual repo checks, test failure/isolation cases, inspect rendered UI/artifa
 
 ## Backlog entry points
 
-- Issue #20: Spike: minimal register-policy-kill loop on the adopted substrate (epic #16)
-- Issue #19: Substrate adoption plan: what gets replaced, order, what stays custom (epic #16)
-- Issue #18: Evaluate engrams as agentcontroltower.io build substrate (epic #16)
-- Issue #17: Evaluate OpenClaw Enterprise as control-plane substrate (epic #16)
-- Issue #16: EPIC: Adopt OpenClaw Enterprise + engrams as the agent substrate (build ON, not from scratch)
-- Issue #15: Epic: distribution (M4)
-- Issue #14: Story: alerts (Brevo email + Slack) + audit log
-- Issue #13: Story: agent enrollment + policy sync (offline = last-known)
+The selectable queue is in docs/BACKLOG.md. Updated 2026-10-07.
+
+- #37 is the first ready story: CI security gates.
+- #38 and #39 follow. #40, #41, #42, #44, and #45 stay blocked on credentials or a host.
+- #16 stays a later OCE adapter, not the build substrate. See docs/substrate-decision.md.
+- #11 remains the hosted epic. Billing stays disabled until #43 has a Stripe readback.

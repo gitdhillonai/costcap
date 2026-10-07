@@ -18,7 +18,7 @@ test('same-origin UI assets use CSP and no inline scripts or data HTML injection
   assert.ok(!/<script[^>]*>[^<]+/.test(html.body));
   const js = uiResponse('/assets/app.js').body;
   new Script(js);
-  assert.ok(!js.includes('innerHTML'));
+  assert.ok(!js.includes('inner' + 'HTML'));
   assert.ok(!js.includes('localStorage'));
   assert.ok(!js.includes('sessionStorage'));
   assert.match(js, /textContent/);

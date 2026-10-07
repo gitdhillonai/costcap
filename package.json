@@ -10,7 +10,9 @@
   "scripts": {
     "test": "node --test test/*.test.js",
     "start": "node src/hosted/run.js",
-    "acceptance:runaway": "node scripts/runaway-smoke.mjs"
+    "acceptance:runaway": "node scripts/runaway-smoke.mjs",
+    "security": "node scripts/security-scan.mjs",
+    "audit": "npm audit --audit-level=high"
   },
   "engines": {
     "node": ">=20"
