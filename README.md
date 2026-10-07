@@ -84,3 +84,22 @@ receipt file, not one reconstructed run. `--day-cap` and `--month-cap` use UTC.
 listing or public release has been made. MCP exposes only `budget_status` via
 JSON-RPC stdio. It cannot kill, resume, change caps or spend money. Local MCP
 protocol tests do not substitute for verification in every MCP client.
+
+<!-- generated-by: workspace-admin/iac-independence -->
+
+## Setup
+
+```bash
+bash scripts/setup.sh
+```
+
+Requires: Node 20+, and access to `gitdhillonai/dotenv` for `.env.local`.
+
+## Environment
+
+See `.env.example`. Pull real values with `bash scripts/pull-secrets.sh`.
+
+## Deploy / Rollback
+
+Deployed via Coolify on the Hetzner box (Path A) on push to `main`.
+Rollback: Coolify dashboard → Deployments → redeploy previous, or `git revert`.
