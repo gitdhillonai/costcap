@@ -27,8 +27,8 @@ GitHub issues are the source of truth. This file is the index as of 2026-10-07.
 | #43 billing disabled | P2 | blocked on Stripe readback; charging stays off | no |
 | #44 costcap.dev DNS | P2 | blocked on DNS credentials | no |
 | #45 live login and alert CI | P1 | blocked on production secrets | no |
-| #46 Compose deploy gate | P0 | ready | yes, do this first |
-| #47 npm pack gate | P0 | ready after #46 | next |
+| #46 Compose deploy gate | P0 | closed on verify run 37637693974 | no |
+| #47 npm pack gate | P0 | in progress | next after its verify job is green |
 | #48 canary command | P0 | ready after #46 | next |
 | #49 Postgres migrations in CI | P1 | ready | after the P0 code-complete stories |
 | #50 billing guard | P1 | ready | after the P0 code-complete stories |

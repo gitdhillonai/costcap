@@ -19,6 +19,7 @@ jobs:
       - run: npm test
       - run: npm run acceptance:runaway
       - run: npm pack --dry-run
+      - run: node scripts/pack-check.mjs
   e2e:
     runs-on: ubuntu-latest
     permissions:
