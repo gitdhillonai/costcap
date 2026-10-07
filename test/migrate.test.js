@@ -16,12 +16,13 @@ test("postgres migrations apply and roll back without changing the running store
   assert.equal(started.status, 0, started.stderr);
   t.after(() => spawnSync("docker", ["rm", "-f", container]));
   let ready = false;
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    const probe = spawnSync("docker", ["exec", container, "pg_isready", "-U", "postgres"], { encoding: "utf8" });
-    if (probe.status === 0) { ready = true; break; }
-    await new Promise((resolve) => setTimeout(resolve, 250));
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      if (psql(container, "SELECT 1;").trim() === "1") { ready = true; break; }
+    } catch { /* the server can restart once after pg_isready */ }
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  assert.equal(ready, true, "postgres did not become ready");
+  assert.equal(ready, true, "postgres did not accept SQL");
   applyFile(container, file("db/migrations/000_roles.sql"));
   psql(container, `BEGIN;\n${readFileSync(file("db/migrations/001_init.sql"))}\n${readFileSync(file("db/migrations/002_grants.sql"))}\nROLLBACK;`);
   assert.equal(psql(container, "SELECT to_regclass('public.orgs');").trim(), "");
