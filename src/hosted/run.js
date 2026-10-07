@@ -28,6 +28,7 @@ const { server, evaluateFleetAlerts } = createHostedServer({
     await sendEmail({ to: [email], subject: "CostCap organization invitation", text: `You were invited to the ${orgName} CostCap organization as ${role}. Sign in with this email address. The invitation expires in 7 days. If you did not expect it, ignore it. Guardrails, not guarantees.` });
   },
   deliverAlert: (alert) => authorizedOrg && alert.orgId === authorizedOrg ? delivery(alert) : [{ status: "unconfigured" }],
+  requestLog: (line) => process.stderr.write(`${line}\n`),
 });
 let alertRunning = false;
 const interval = setInterval(async () => {

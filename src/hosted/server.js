@@ -11,7 +11,8 @@ const fail = (status, message) => { const err = new Error(message); err.status =
 const audit = (s, orgId, actor, action, target, detail = {}) => s.audit.push(auditEntry({ orgId, actor, action, target, detail }));
 
 export function createHostedServer({ storePath, verifyChallenge, sendCode, sendInvite, deliverAlert,
-  now = () => Date.now(), secureCookies = true, origin, turnstileSiteKey = "", bodyLimit = 256_000 } = {}) {
+  now = () => Date.now(), secureCookies = true, origin, turnstileSiteKey = "", bodyLimit = 256_000,
+  requestLog = () => {} } = {}) {
   if (!storePath || !verifyChallenge || !sendCode || !origin) throw new Error("Store, origin, Turnstile verifier and authorized code sender required");
   const store = openStore(storePath);
   const rate = new Map();
@@ -32,6 +33,16 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, sendI
   };
   const admin = (s, req) => { const u = sessionUser(s, req); if (!["owner", "admin"].includes(u.role)) fail(403, "Admin role required"); return u; };
   const server = http.createServer(async (req, res) => {
+    const started = Date.now();
+    let logged = false;
+    res.on("finish", () => {
+      if (logged) return;
+      logged = true;
+      let path = "/";
+      try { path = new URL(req.url ?? "/", origin).pathname; } catch { path = "/"; }
+      const line = JSON.stringify({ method: req.method, path, status: res.statusCode, durationMs: Date.now() - started });
+      try { requestLog(line); } catch { /* a log sink failure must not change the response */ }
+    });
     const json = (status, value, headers = {}) => res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store", "x-content-type-options": "nosniff", ...headers }).end(JSON.stringify(value));
     try {
       const path = new URL(req.url, origin).pathname;

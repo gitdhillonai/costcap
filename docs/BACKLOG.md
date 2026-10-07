@@ -19,8 +19,8 @@ GitHub issues are the source of truth. This file is the index as of 2026-10-07.
 | #15 distribution epic | P2 | blocked on publish and marketplace access | no |
 | #16 OCE substrate | P2 | blocked, re-scoped to a later adapter | no |
 | #37 CI security gates | P0 | closed on verify run 37634321530 | no |
-| #38 Playwright E2E | P0 | in progress on the real local server | next after its verify job is green |
-| #39 request logs | P1 | ready after #37 | next |
+| #38 Playwright E2E | P0 | closed on verify run 37635087734 | no |
+| #39 request logs | P1 | in progress | next after its verify job is green |
 | #40 IaC deploy | P1 | blocked on deploy secrets and a host | no |
 | #41 deploy canary | P1 | blocked on #40 | no |
 | #42 Postgres | P2 | blocked on an IaC-managed database | no |

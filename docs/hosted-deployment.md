@@ -31,6 +31,7 @@ billing disabled. No marketplace or npm release is implied.
   credentials can only read their policy and submit their own receipts.
 - POST /v1/agents/{id}/policy modifies caps/killed state with atomic versions;
   POST /v1/agents/{id}/revoke invalidates credentials.
+- Each response writes one JSON line to stderr with method, pathname, status, and duration. The line does not include emails, cookies, authorization, invite tokens, or mail bodies.
 - GET /v1/fleet returns only session org's agents, receipts, audit and alerts.
 - /v1/receipts acknowledges only after a durable transaction. Duplicate ID with
   changed content returns 409. Receipt trust is agent-reported, not billing proof.
