@@ -37,4 +37,4 @@ GitHub issues are the source of truth. This file is the index as of 2026-10-07.
 
 Closed: #2, #3, #4, #7, #8, #9, #17, #18, #19, #20, #37, #38, #39, #46, #47, #48, #49, #50, #51, #52.
 
-Code-complete stories #46 through #52 are closed. No issue is labeled `ready`. The remaining open issues are blocked on a credential, a host, or calendar evidence, or they are epics waiting on those issues. This is not production-ready. Billing stays disabled.
+Code-complete stories #46 through #52 are closed. The deploy workflow now applies one replica when the production host and deploy key are present, and it still exits 2 when they are missing. #40 stays open until that workflow records a `/health` sha. This is not production-ready. Billing stays disabled.

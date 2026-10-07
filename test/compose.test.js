@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { applyDeploy } from "../scripts/deploy-apply.mjs";
 
 const repo = fileURLToPath(new URL("..", import.meta.url));
 const required = ["COSTCAP_ORIGIN", "TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY", "BREVO_API_KEY", "COSTCAP_EMAIL_FROM"];
@@ -67,5 +68,53 @@ test("deploy preflight reports missing names and does not print values", () => {
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /deploy-preflight\.mjs/);
   assert.match(workflow, /deploy-apply\.mjs/);
-  assert.equal(workflow.includes("ssh"), false);
+  assert.match(workflow, /COSTCAP_DEPLOY_SSH_KEY/);
+  assert.match(workflow, /COSTCAP_EXPECT_SHA/);
+  assert.equal(workflow.includes("ssh "), false);
+});
+
+test("production compose is one replica on the existing data directory", () => {
+  const sha = "a".repeat(40);
+  const result = spawnSync("docker", ["compose", "-f", "compose.production.yaml", "config"], {
+    cwd: repo,
+    env: env({
+      COSTCAP_GIT_SHA: sha,
+      COSTCAP_ORIGIN: "https://app.example.invalid",
+      TURNSTILE_SITE_KEY: "public-placeholder",
+      TURNSTILE_SECRET_KEY: "secret-placeholder",
+      BREVO_API_KEY: "not-a-real-mail-marker",
+      COSTCAP_EMAIL_FROM: "noreply@example.invalid",
+    }),
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /user: 1000:1000/);
+  assert.match(result.stdout, /replicas: 1/);
+  assert.match(result.stdout, /source: \/opt\/costcap\/data/);
+  assert.match(result.stdout, /target: \/data/);
+  assert.match(result.stdout, /app\.costcap\.dev/);
+  assert.match(result.stdout, new RegExp(sha));
+  assert.doesNotMatch(result.stdout, /replicas: [2-9]/);
+  assert.equal((result.stderr || "").includes("not-a-real-mail-marker"), false);
+});
+
+test("apply contacts the host only when the key and commit are present", () => {
+  const marker = "not-a-real-deploy-key";
+  const calls = [];
+  const run = (file, args) => {
+    calls.push([file, args]);
+    return Buffer.from("");
+  };
+  const missing = applyDeploy({ host: "deploy@example", key: "", sha: "a".repeat(40), run });
+  assert.equal(missing, 2);
+  assert.equal(calls.length, 0);
+  const sha = "b".repeat(40);
+  const code = applyDeploy({ host: "deploy@example", key: marker, sha, cwd: repo, run });
+  assert.equal(code, 0);
+  assert.deepEqual(calls.map((call) => call[0]), ["tar", "ssh", "ssh"]);
+  const flat = JSON.stringify(calls);
+  assert.equal(flat.includes(marker), false);
+  assert.match(flat, new RegExp(sha));
+  assert.match(flat, /\/opt\/costcap\/src/);
+  assert.match(flat, /deploy-remote\.sh/);
 });

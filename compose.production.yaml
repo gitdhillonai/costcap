@@ -1,0 +1,41 @@
+name: costcap
+services:
+  costcap:
+    build:
+      context: .
+      args:
+        COSTCAP_GIT_SHA: ${COSTCAP_GIT_SHA:?COSTCAP_GIT_SHA required}
+    image: costcap:1
+    user: "1000:1000"
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      COSTCAP_STORE_PATH: /data/costcap.json
+      COSTCAP_EMAIL_PROVIDER: brevo
+      COSTCAP_GIT_SHA: ${COSTCAP_GIT_SHA:?COSTCAP_GIT_SHA required}
+      COSTCAP_ORIGIN: ${COSTCAP_ORIGIN:?COSTCAP_ORIGIN required}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:?TURNSTILE_SITE_KEY required}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY required}
+      BREVO_API_KEY: ${BREVO_API_KEY:?BREVO_API_KEY required}
+      COSTCAP_EMAIL_FROM: ${COSTCAP_EMAIL_FROM:?COSTCAP_EMAIL_FROM required}
+    volumes:
+      - /opt/costcap/data:/data
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    networks: [coolify]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.cc-http.entryPoints=http
+      - traefik.http.routers.cc-http.rule=Host(`app.costcap.dev`)
+      - traefik.http.routers.cc-http.middlewares=redirect-to-https
+      - traefik.http.routers.cc-https.entryPoints=https
+      - traefik.http.routers.cc-https.rule=Host(`app.costcap.dev`)
+      - traefik.http.routers.cc-https.tls=true
+      - traefik.http.routers.cc-https.tls.certresolver=letsencrypt
+      - traefik.http.routers.cc-https.middlewares=gzip
+      - traefik.http.services.cc.loadbalancer.server.port=3000
+    deploy:
+      replicas: 1
+networks:
+  coolify:
+    external: true

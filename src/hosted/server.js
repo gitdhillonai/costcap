@@ -50,7 +50,7 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, sendI
         const ui = uiResponse(path, turnstileSiteKey);
         if (ui) return res.writeHead(200, ui.headers).end(ui.body);
       }
-      if (req.method === "GET" && path === "/health") return json(200, { status: "ok", product: "CostCap", beta: true, billing: "disabled", persistence: "single-process-file", version: "0.0.1" });
+      if (req.method === "GET" && path === "/health") return json(200, { status: "ok", product: "CostCap", beta: true, billing: "disabled", persistence: "single-process-file", version: "0.0.1", sha: process.env.COSTCAP_GIT_SHA || null });
       const browserMutation = req.method !== "GET" && !req.headers.authorization;
       if (browserMutation && req.headers.origin !== origin) fail(403, "Origin rejected");
       let text = "";

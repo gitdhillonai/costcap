@@ -1,11 +1,11 @@
 # ADR 0004: Deploy gate fails closed
 
-Date: 2026-10-07. Status: accepted for the git definition. This is not an applied deploy.
+Date: 2026-10-07. Status: accepted. An apply runs only from the deploy workflow when its secrets exist.
 
 ## Decision
 
-`compose.yaml` defines one service, `user: "1000:1000"`, one volume at `/data`, and `deploy.replicas: 1`. Required runtime values use Compose's required-variable syntax. `.github/workflows/deploy.yml` runs only on `workflow_dispatch`, checks those names with `scripts/deploy-preflight.mjs`, renders the file, and then runs `scripts/deploy-apply.mjs`, which exits 2 without contacting a host.
+`compose.yaml` is the local and CI render: one service, `user: "1000:1000"`, one volume at `/data`, and `deploy.replicas: 1`. `compose.production.yaml` is the host definition: the same one replica, UID 1000, the existing `/opt/costcap/data` directory, Traefik for `app.costcap.dev`, and `COSTCAP_GIT_SHA` on `/health`. `.github/workflows/deploy.yml` runs on `workflow_dispatch`. `scripts/deploy-preflight.mjs` checks the runtime names. `scripts/deploy-apply.mjs` exits 2 when `COSTCAP_DEPLOY_HOST`, `COSTCAP_DEPLOY_SSH_KEY`, or `COSTCAP_GIT_SHA` is missing. When they are present it extracts this repo to `/opt/costcap/src` and runs `scripts/deploy-remote.sh`, which keeps the host `.env` and data directory and rolls the image back if `/health` does not report that commit.
 
 ## Consequences
 
-Issue #40 stays open until a workflow log shows an apply and a `/health` readback. This gate does not SSH and does not print secret values.
+Issue #40 closes only when that workflow log shows the apply and the health readback. The script does not print secret values. Billing stays disabled.

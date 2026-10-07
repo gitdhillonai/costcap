@@ -3,7 +3,7 @@
 This service is implemented and locally tested, not live-verified. Free beta,
 billing disabled. No marketplace or npm release is implied.
 
-- `compose.yaml` is the runtime definition: one replica, UID 1000, and a single `/data` volume. `deploy.yml` fails closed and does not apply. Issue #40 stays open until an apply and health readback exist.
+- `compose.yaml` is the CI render: one replica, UID 1000, and a single `/data` volume. `compose.production.yaml` is what `deploy.yml` applies on the existing host when `COSTCAP_DEPLOY_HOST`, `COSTCAP_DEPLOY_SSH_KEY`, and `COSTCAP_GIT_SHA` are set. Without them the job exits 2. The apply keeps `/opt/costcap/.env` and `/opt/costcap/data`, then requires `/health` to report the deployed sha. Issue #40 stays open until that workflow log exists.
 - One process/replica only; local JSON datastore, atomic rename, mode 0600.
   This is not the planned Postgres service. Never horizontally scale it. Restart
   uses the same durable volume. Volume backups and restore proof required.

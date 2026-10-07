@@ -79,6 +79,7 @@ test("billing stays disabled and there is no charge route", async (t) => {
   assert.equal(health.body.billing, "disabled");
   assert.equal(health.body.beta, true);
   assert.equal(health.body.persistence, "single-process-file");
+  assert.equal(health.body.sha, null);
   const owner = await f.login("billing@example.invalid");
   const fleet = await f.request("/v1/fleet", undefined, owner.cookie);
   assert.equal(fleet.body.billing, "disabled");

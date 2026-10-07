@@ -27,10 +27,15 @@ jobs:
           COSTCAP_EMAIL_FROM: ${{ secrets.COSTCAP_EMAIL_FROM }}
           COMPOSE_DISABLE_ENV_FILE: "1"
         run: docker compose config
-      - name: do not apply
+      - name: apply one replica
+        env:
+          COSTCAP_DEPLOY_HOST: ${{ secrets.COSTCAP_DEPLOY_HOST }}
+          COSTCAP_DEPLOY_SSH_KEY: ${{ secrets.COSTCAP_DEPLOY_SSH_KEY }}
+          COSTCAP_GIT_SHA: ${{ github.sha }}
         run: node scripts/deploy-apply.mjs
       - name: canary the applied origin
         if: success()
         env:
           COSTCAP_ORIGIN: ${{ secrets.COSTCAP_ORIGIN }}
+          COSTCAP_EXPECT_SHA: ${{ github.sha }}
         run: node scripts/canary.mjs "$COSTCAP_ORIGIN"
