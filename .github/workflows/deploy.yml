@@ -29,3 +29,8 @@ jobs:
         run: docker compose config
       - name: do not apply
         run: node scripts/deploy-apply.mjs
+      - name: canary the applied origin
+        if: success()
+        env:
+          COSTCAP_ORIGIN: ${{ secrets.COSTCAP_ORIGIN }}
+        run: node scripts/canary.mjs "$COSTCAP_ORIGIN"
