@@ -20,7 +20,7 @@ function compose(values) {
 test("compose config fails closed without required variables", () => {
   const result = compose();
   assert.notEqual(result.status, 0);
-  assert.match(`${result.stderr}`, /COSTCAP_ORIGIN/);
+  assert.match(`${result.stderr}`, /required variable (?:COSTCAP_ORIGIN|TURNSTILE_SITE_KEY|TURNSTILE_SECRET_KEY|BREVO_API_KEY|COSTCAP_EMAIL_FROM)/);
 });
 
 test("compose config renders one replica and a data volume for uid 1000", () => {
