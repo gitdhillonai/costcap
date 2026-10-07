@@ -32,8 +32,8 @@ GitHub issues are the source of truth. This file is the index as of 2026-10-07.
 | #48 canary command | P0 | closed on verify run 37638496816 | no |
 | #49 Postgres migrations in CI | P1 | closed on verify run 37638742657 | no |
 | #50 billing guard | P1 | closed on verify run 37640489524 | no |
-| #51 DNS fail-closed workflow | P2 | in progress | next after its verify job is green |
-| #52 live-proof shell | P2 | ready | after the P1 code-complete stories |
+| #51 DNS fail-closed workflow | P2 | closed on verify run 37640713639 | no |
+| #52 live-proof shell | P2 | in progress | next after its verify job is green |
 
 Closed: #2, #3, #4, #7, #8, #9, #17, #18, #19, #20, #37, #38, #39.
 

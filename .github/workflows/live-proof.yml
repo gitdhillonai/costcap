@@ -1,0 +1,17 @@
+name: live-proof
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: fail closed without production login secrets
+        env:
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          COSTCAP_ALERT_ORG_ID: ${{ secrets.COSTCAP_ALERT_ORG_ID }}
+        run: node scripts/live-proof.mjs
