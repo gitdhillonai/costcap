@@ -2,14 +2,35 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+async function load(fetchImpl, url, parse) {
+  const res = await fetchImpl(url);
+  if (!parse) return { status: res.status, body: null, transient: res.status === 502 || res.status === 503 };
+  try {
+    const body = typeof res.json === "function" ? await res.json() : null;
+    return { status: res.status, body, transient: res.status === 502 || res.status === 503 };
+  } catch {
+    return { status: res.status, body: null, transient: true };
+  }
+}
+
+async function stable(fetchImpl, url, parse) {
+  let last;
+  for (let attempt = 0; attempt < 15; attempt += 1) {
+    last = await load(fetchImpl, url, parse);
+    if (!last.transient) return last;
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  return last;
+}
+
 export async function canary(base, fetchImpl = globalThis.fetch, expectedSha = "") {
   const root = String(base).replace(/\/$/, "");
-  const healthRes = await fetchImpl(`${root}/health`);
-  const health = await healthRes.json();
-  const pageRes = await fetchImpl(`${root}/`);
-  const configRes = await fetchImpl(`${root}/ui/config`);
-  const config = await configRes.json();
-  const fleetRes = await fetchImpl(`${root}/v1/fleet`);
+  const healthRes = await stable(fetchImpl, `${root}/health`, true);
+  const health = healthRes.body || {};
+  const pageRes = await stable(fetchImpl, `${root}/`, false);
+  const configRes = await stable(fetchImpl, `${root}/ui/config`, true);
+  const config = configRes.body;
+  const fleetRes = await stable(fetchImpl, `${root}/v1/fleet`, true);
   const errors = [];
   if (healthRes.status !== 200 || health.billing !== "disabled" || health.persistence !== "single-process-file") errors.push("health");
   if (expectedSha && health.sha !== expectedSha) errors.push("sha");

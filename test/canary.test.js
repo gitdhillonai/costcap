@@ -43,6 +43,19 @@ test("canary passes on the real server and rejects a billing change", async (t) 
     return { status: 200, json: async () => ({}), text: async () => "CostCap" };
   }, "b".repeat(40));
   assert.deepEqual(wrongSha.errors, ["sha"]);
+  let healthCalls = 0;
+  const retried = await canary("http://example.invalid", async (url) => {
+    if (url.endsWith("/health")) {
+      healthCalls += 1;
+      if (healthCalls === 1) return { status: 503, json: async () => { throw new Error("no available server"); } };
+      return { status: 200, json: async () => ({ billing: "disabled", persistence: "single-process-file", sha: "c".repeat(40) }) };
+    }
+    if (url.endsWith("/ui/config")) return { status: 200, json: async () => ({ siteKey: "public" }) };
+    if (url.endsWith("/v1/fleet")) return { status: 401, json: async () => ({}) };
+    return { status: 200, json: async () => ({}), text: async () => "CostCap" };
+  }, "c".repeat(40));
+  assert.equal(retried.ok, true);
+  assert.equal(healthCalls, 2);
   const workflow = readFileSync(new URL("../.github/workflows/deploy.yml", import.meta.url), "utf8");
   const applyAt = workflow.indexOf("deploy-apply.mjs");
   const canaryAt = workflow.indexOf("scripts/canary.mjs");
