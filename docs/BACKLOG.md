@@ -21,8 +21,8 @@ GitHub issues are the source of truth. This file is the index as of 2026-10-07.
 | #37 CI security gates | P0 | closed on verify run 37634321530 | no |
 | #38 Playwright E2E | P0 | closed on verify run 37635087734 | no |
 | #39 request logs | P1 | closed on verify run 37635348252 | no |
-| #40 IaC deploy | P1 | blocked on deploy secrets and a host | no |
-| #41 deploy canary | P1 | blocked on #40 | no |
+| #40 IaC deploy | P1 | closed on deploy run 37644183117 | no |
+| #41 deploy canary | P1 | closed on deploy run 37644183117 | no |
 | #42 Postgres | P2 | blocked on an IaC-managed database | no |
 | #43 billing disabled | P2 | blocked on Stripe readback; charging stays off | no |
 | #44 costcap.dev DNS | P2 | blocked on DNS credentials | no |
@@ -35,6 +35,6 @@ GitHub issues are the source of truth. This file is the index as of 2026-10-07.
 | #51 DNS fail-closed workflow | P2 | closed on verify run 37640713639 | no |
 | #52 live-proof shell | P2 | closed on verify run 37640949670 | no |
 
-Closed: #2, #3, #4, #7, #8, #9, #17, #18, #19, #20, #37, #38, #39, #46, #47, #48, #49, #50, #51, #52.
+Closed: #2, #3, #4, #7, #8, #9, #17, #18, #19, #20, #37, #38, #39, #40, #41, #46, #47, #48, #49, #50, #51, #52.
 
-Code-complete stories #46 through #52 are closed. The deploy workflow now applies one replica when the production host and deploy key are present, and it still exits 2 when they are missing. #40 stays open until that workflow records a `/health` sha. This is not production-ready. Billing stays disabled.
+#40 and #41 are closed. Deploy run 37644183117 applied commit 28d2e87010ba27465db6417f55ed7d27e8e0b8fb and the canary passed. `GET /health` on the origin reports that sha. The workflow still exits 2 when the host or deploy key is missing. This is not production-ready. Billing stays disabled.

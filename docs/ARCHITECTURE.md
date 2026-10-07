@@ -46,6 +46,7 @@ The selectable queue is in docs/BACKLOG.md. Updated 2026-10-07.
 - #38 is closed. Playwright drives the real hosted server in CI and does not prove production login. See docs/adr/0002-playwright-e2e.md.
 - #39 is closed. Access logs are JSON on stderr and omit secrets. See docs/adr/0003-request-logs.md.
 - #46 through #52 are closed. Pack, canary, CI-only Postgres migrations, the billing guard, DNS, and live proof exist in git and fail closed. They do not publish, charge, or send mail.
-- The deploy workflow applies `compose.production.yaml` when the production environment has the host and deploy key. #40 stays open until that workflow's health readback is recorded. #5 stays blocked on `NPM_TOKEN`. #1 stays open until #5 closes. #41, #42, #44, and #45 stay blocked on a readback or credential.
+- #40 and #41 are closed. Deploy run 37644183117 applied one replica and the canary passed. `/health` reports the deployed sha. The workflow still exits 2 when the host or deploy key is missing.
+- #5 stays blocked on `NPM_TOKEN`. #1 stays open until #5 closes. #42, #44, and #45 stay blocked on a database readback, DNS credential, or live provider proof.
 - #16 stays a later OCE adapter, not the build substrate. See docs/substrate-decision.md.
 - #11 remains the hosted epic. Billing stays disabled until #43 has a Stripe readback.

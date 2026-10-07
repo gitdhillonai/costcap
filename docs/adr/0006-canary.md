@@ -8,4 +8,4 @@ Date: 2026-10-07. Status: accepted for the local and workflow command. This is n
 
 ## Consequences
 
-Issue #41 stays open until a deploy workflow applies a commit and the canary passes against `COSTCAP_ORIGIN`.
+Issue #41 closed when deploy run 37644183117 printed `canary: passed` against `COSTCAP_ORIGIN` after the apply.
