@@ -33,8 +33,8 @@ GitHub issues are the source of truth. This file is the index as of 2026-10-07.
 | #49 Postgres migrations in CI | P1 | closed on verify run 37638742657 | no |
 | #50 billing guard | P1 | closed on verify run 37640489524 | no |
 | #51 DNS fail-closed workflow | P2 | closed on verify run 37640713639 | no |
-| #52 live-proof shell | P2 | in progress | next after its verify job is green |
+| #52 live-proof shell | P2 | closed on verify run 37640949670 | no |
 
-Closed: #2, #3, #4, #7, #8, #9, #17, #18, #19, #20, #37, #38, #39.
+Closed: #2, #3, #4, #7, #8, #9, #17, #18, #19, #20, #37, #38, #39, #46, #47, #48, #49, #50, #51, #52.
 
-#46 through #52 are code-complete stories. They do not close #5, #10, #12, #13, #14, #15, #16, or #40 through #45. Billing stays disabled.
+Code-complete stories #46 through #52 are closed. No issue is labeled `ready`. The remaining open issues are blocked on a credential, a host, or calendar evidence, or they are epics waiting on those issues. This is not production-ready. Billing stays disabled.

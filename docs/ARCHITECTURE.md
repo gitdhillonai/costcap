@@ -45,7 +45,7 @@ The selectable queue is in docs/BACKLOG.md. Updated 2026-10-07.
 - #37 is closed. The verify workflow pins actions, audits dependencies, and scans tracked text. See docs/adr/0001-ci-security-gates.md.
 - #38 is closed. Playwright drives the real hosted server in CI and does not prove production login. See docs/adr/0002-playwright-e2e.md.
 - #39 is closed. Access logs are JSON on stderr and omit secrets. See docs/adr/0003-request-logs.md.
-- #46 is the first code-complete story: Compose and a deploy workflow that does not apply. #40 stays open.
-- #5 stays blocked on `NPM_TOKEN`. #1 stays open until #5 closes. #41, #42, #44, and #45 stay blocked on a host or credential.
+- #46 through #52 are closed. Compose, pack, canary, CI-only Postgres migrations, the billing guard, DNS, and live proof exist in git and fail closed. They do not apply, publish, charge, or send mail.
+- #5 stays blocked on `NPM_TOKEN`. #1 stays open until #5 closes. #40, #41, #42, #44, and #45 stay blocked on a host or credential.
 - #16 stays a later OCE adapter, not the build substrate. See docs/substrate-decision.md.
 - #11 remains the hosted epic. Billing stays disabled until #43 has a Stripe readback.
