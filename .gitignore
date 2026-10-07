@@ -3,3 +3,6 @@ node_modules/
 .env*
 *.jsonl
 *.tgz
+test-results/
+playwright-report/
+blob-report/

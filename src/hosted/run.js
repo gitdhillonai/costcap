@@ -1,7 +1,9 @@
 import { createTransactionalEmail } from "./email.js";
 import { createHostedServer } from "./server.js";
 import { createAlertDelivery } from "./delivery.js";
+import { verifyProductionChallenge } from "./turnstile.js";
 const required = (key) => { if (!process.env[key]) throw new Error(`${key} required`); return process.env[key]; };
+if (process.env.COSTCAP_TURNSTILE_FIXTURE || process.env.COSTCAP_EMAIL_FIXTURE) throw new Error("Production launcher rejects test fixtures");
 const origin = required("COSTCAP_ORIGIN");
 if (new URL(origin).protocol !== "https:") throw new Error("Production origin must be HTTPS");
 const turnstileKey = required("TURNSTILE_SECRET_KEY");
@@ -17,12 +19,7 @@ const { server, evaluateFleetAlerts } = createHostedServer({
   origin,
   turnstileSiteKey: required("TURNSTILE_SITE_KEY"),
   storePath: process.env.COSTCAP_STORE_PATH ?? "/data/costcap.json",
-  verifyChallenge: async (response, remoteip) => {
-    if (typeof response !== "string" || response.length > 2048) return false;
-    const result = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ secret: turnstileKey, response, remoteip }), signal: AbortSignal.timeout(5000) });
-    const body = await result.json();
-    return result.ok && body.success === true && body.hostname === new URL(origin).hostname;
-  },
+  verifyChallenge: (response, remoteip) => verifyProductionChallenge({ response, remoteip, secret: turnstileKey, origin }),
   sendCode: async ({ email, code }) => {
     // Deployment requires owner-approved transactional-email identity/scope.
     await sendEmail({ to: [email], subject: "CostCap sign-in code", text: `Your CostCap code is ${code}. It expires in 10 minutes. If you did not request it, ignore it.` });

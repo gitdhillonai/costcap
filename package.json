@@ -12,7 +12,8 @@
     "start": "node src/hosted/run.js",
     "acceptance:runaway": "node scripts/runaway-smoke.mjs",
     "security": "node scripts/security-scan.mjs",
-    "audit": "npm audit --audit-level=high"
+    "audit": "npm audit --audit-level=high",
+    "e2e": "playwright test"
   },
   "engines": {
     "node": ">=20"
@@ -21,5 +22,8 @@
     "src",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
 }
