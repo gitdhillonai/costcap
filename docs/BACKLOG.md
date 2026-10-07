@@ -27,7 +27,14 @@ GitHub issues are the source of truth. This file is the index as of 2026-10-07.
 | #43 billing disabled | P2 | blocked on Stripe readback; charging stays off | no |
 | #44 costcap.dev DNS | P2 | blocked on DNS credentials | no |
 | #45 live login and alert CI | P1 | blocked on production secrets | no |
+| #46 Compose deploy gate | P0 | ready | yes, do this first |
+| #47 npm pack gate | P0 | ready after #46 | next |
+| #48 canary command | P0 | ready after #46 | next |
+| #49 Postgres migrations in CI | P1 | ready | after the P0 code-complete stories |
+| #50 billing guard | P1 | ready | after the P0 code-complete stories |
+| #51 DNS fail-closed workflow | P2 | ready | after the P1 code-complete stories |
+| #52 live-proof shell | P2 | ready | after the P1 code-complete stories |
 
 Closed: #2, #3, #4, #7, #8, #9, #17, #18, #19, #20, #37, #38, #39.
 
-No issue is labeled `ready`. The platform is not production-ready while #40, #41, or #45 is open. Billing stays disabled.
+#46 through #52 are code-complete stories. They do not close #5, #10, #12, #13, #14, #15, #16, or #40 through #45. Billing stays disabled.

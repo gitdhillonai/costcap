@@ -3,6 +3,7 @@
 This service is implemented and locally tested, not live-verified. Free beta,
 billing disabled. No marketplace or npm release is implied.
 
+- `compose.yaml` is the runtime definition: one replica, UID 1000, and a single `/data` volume. `deploy.yml` fails closed and does not apply. Issue #40 stays open until an apply and health readback exist.
 - One process/replica only; local JSON datastore, atomic rename, mode 0600.
   This is not the planned Postgres service. Never horizontally scale it. Restart
   uses the same durable volume. Volume backups and restore proof required.

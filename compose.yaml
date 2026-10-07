@@ -1,0 +1,25 @@
+name: costcap
+services:
+  costcap:
+    build:
+      context: .
+    image: costcap:local
+    user: "1000:1000"
+    environment:
+      PORT: "3000"
+      COSTCAP_STORE_PATH: /data/costcap.json
+      COSTCAP_EMAIL_PROVIDER: brevo
+      COSTCAP_ORIGIN: ${COSTCAP_ORIGIN:?COSTCAP_ORIGIN required}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:?TURNSTILE_SITE_KEY required}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY required}
+      BREVO_API_KEY: ${BREVO_API_KEY:?BREVO_API_KEY required}
+      COSTCAP_EMAIL_FROM: ${COSTCAP_EMAIL_FROM:?COSTCAP_EMAIL_FROM required}
+    volumes:
+      - costcap-data:/data
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+volumes:
+  costcap-data:

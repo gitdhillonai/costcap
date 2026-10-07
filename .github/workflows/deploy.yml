@@ -1,0 +1,31 @@
+name: deploy
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: fail closed without production secrets
+        env:
+          COSTCAP_ORIGIN: ${{ secrets.COSTCAP_ORIGIN }}
+          TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          COSTCAP_EMAIL_FROM: ${{ secrets.COSTCAP_EMAIL_FROM }}
+          COSTCAP_EMAIL_PROVIDER: brevo
+        run: node scripts/deploy-preflight.mjs
+      - name: render one replica
+        env:
+          COSTCAP_ORIGIN: ${{ secrets.COSTCAP_ORIGIN }}
+          TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          COSTCAP_EMAIL_FROM: ${{ secrets.COSTCAP_EMAIL_FROM }}
+          COMPOSE_DISABLE_ENV_FILE: "1"
+        run: docker compose config
+      - name: do not apply
+        run: node scripts/deploy-apply.mjs
