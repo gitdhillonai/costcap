@@ -42,6 +42,34 @@ fully done or you hit a Stop condition in `AUTONOMOUS_EXECUTION_PROMPT.md`.
 - The app must start cleanly and serve its health endpoint (`/health` or
   `/healthz`) with 200, or the deploy goes unhealthy.
 
+## Endpoint / domain wiring
+- The app's live endpoint is its Coolify URL (currently a `*.sslip.io`
+  placeholder). Keep it serving 200 there.
+- This product's real domain is OWNED (the owner/Instinct registered it and
+  controls DNS — nothing to buy). The domain is the repo slug when the slug is a
+  domain (e.g. `onceprobe.io`), otherwise the `*_ORIGIN` / `SITE_URL` in
+  `~/dotenv/costcap/.env.persooninc1`.
+- The box serves Coolify apps on public IPv4 `2.29.29.67` (AAAA
+  `2a01:4f9:c015:7bf2::1`). Wiring the real endpoint = (1) a DNS A record
+  `<domain> -> 2.29.29.67` and (2) the app's FQDN set to `https://<domain>` in
+  Coolify (which then issues Let's Encrypt TLS). You MAY set the Coolify FQDN;
+  you must NOT edit DNS yourself — write the exact A record needed into the Owner
+  enablement queue in `docs/HANDOFF.md` for the owner to apply. Keep serving on
+  the sslip URL until the domain resolves.
+- Once DNS is live, point the app's own `*_ORIGIN` / `SITE_URL` env at the real
+  domain so links, emails, and canonicals are correct.
+
+## Run migrations on deploy (so the prod DB actually gets its schema)
+- Committed migration files are NOT enough: the Path A Postgres DB on the box
+  stays EMPTY until the app applies them. Wire migrations to run automatically on
+  deploy — either at container boot (entrypoint runs the migrate step before
+  serving) or as a Coolify pre-deploy command — against DB host `10.0.1.1` with
+  creds from `~/dotenv/costcap/.env.persooninc1`.
+- A schema-changing story is Done only when the deploy path applies the migration
+  AND the running app serves against the migrated DB. Verify locally on node 22
+  against a disposable Postgres; the real apply happens on deploy. If this product
+  is stateless (no DB), say so in `docs/HANDOFF.md` and skip this.
+
 ## git
 - Commit logical units and push to `main` (`git push origin HEAD:main`). On a
   rejected push, `git fetch` + rebase and retry — never force, never
