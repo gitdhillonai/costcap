@@ -13,7 +13,14 @@ an IaC-managed Postgres). See the Owner enablement queue below.
 small tested unit, and stop at the cap for owner review. Do not perform any
 Parked-residue action.
 
-**Last tick (2026-10-07):** gap-analysis fix — closed the OpenRouter coverage
+**Last tick (2026-10-08):** gap-analysis fix — closed a reconcile asymmetry.
+`reconcile()` threw on a duplicate provider-charge id but silently split a
+duplicate receipt id across `matched` and `receipt_only`, producing an incoherent
+accounting-integrity report. Now a repeated (or empty) receipt id throws, matching
+the charge-side guard. `npm test` green (119 tests). Covered by
+`test/reconcile.test.js` (verified red on the prior `src/reconcile.js`).
+
+**Prior tick (2026-10-07):** gap-analysis fix — closed the OpenRouter coverage
 gap. OpenRouter is wired as a provider and emitted as `OPENROUTER_BASE_URL` but
 had no behavioral test, unlike the other three providers. Added
 `test/openrouter.test.js` covering OpenAI-shape usage extraction (cached tokens,
@@ -21,7 +28,7 @@ slashed model ids), the base-URL override, and a routed `/openrouter` metering +
 cap hard-stop that exercises the unknown-model fallback rate. README
 enforcement-limits now lists OpenRouter among the fixture-tested providers.
 
-**Prior tick (2026-10-07):** version source-of-truth — the product version is
+**Earlier tick (2026-10-07):** version source-of-truth — the product version is
 read from `package.json` via `src/version.js` and consumed by both the hosted
 `/health` endpoint and the CLI; added `--version`/`--help`.
 

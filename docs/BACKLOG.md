@@ -42,4 +42,13 @@ Closed: #2, #3, #4, #7, #8, #9, #17, #18, #19, #20, #37, #38, #39, #40, #41, #46
 ## Gap-analysis fixes (untracked by a GitHub issue)
 
 - 2026-10-07: version source-of-truth. `/health` reported a hardcoded `version: "0.0.1"` that would drift from `package.json` on the next bump. Now both the hosted `/health` endpoint and the CLI read the version from `package.json` via `src/version.js`. Added `costcap --version`/`-v` and `--help`/`-h` (plus no-args usage). Covered by `test/hosted-server.test.js` and `test/cli.test.js`.
+- 2026-10-08: reconcile duplicate/empty receipt id. `reconcile()` threw on a
+  duplicate *provider charge* id but silently absorbed a duplicate *receipt* id —
+  the second occurrence was reported as a `receipt_only` gap while the first still
+  counted as `matched`, so the same id appeared in two buckets of an
+  accounting-integrity report. A repeated receipt id signals ledger corruption and
+  must fail loudly, symmetric with the charge-side guard. Now throws
+  `Duplicate receipt id`, and the receipt-id check also rejects an empty string
+  (matching the charge side). Covered by `test/reconcile.test.js` (goes red on the
+  prior `src/reconcile.js`).
 - 2026-10-07: OpenRouter provider coverage. OpenRouter is a wired provider (in `PROVIDERS`, emitted as `OPENROUTER_BASE_URL` by `baseUrlOverrides`, listed in `docs/product-spec.md`) but had no behavioral test, while openai/anthropic/gemini each have usage-extraction fixtures. Added `test/openrouter.test.js`: `extractUsage` for OpenAI-shape OpenRouter responses (cached tokens + slashed model ids), the base-URL override, and a routed `/openrouter` metering + cap hard-stop that also exercises the unknown-model fallback rate. README enforcement-limits now lists OpenRouter among the fixture-tested providers.

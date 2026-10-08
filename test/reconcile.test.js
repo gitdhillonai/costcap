@@ -22,6 +22,17 @@ test("reconciliation does not treat unknown or missing provider cost as zero", (
   assert.throws(() => reconcile({ receipts: [], charges: [] }), /No receipts/);
 });
 
+test("a duplicate or empty receipt id fails loudly, like a duplicate provider charge", () => {
+  // A repeated receipt id means ledger corruption; it must never be silently
+  // split across matched and receipt_only. Symmetric with the charge-side guard.
+  assert.throws(
+    () => reconcile({ receipts: [{ id: "a", cost_usd: 1 }, { id: "a", cost_usd: 1 }], charges: [{ id: "a", cost_usd: 1 }] }),
+    /Duplicate receipt id/,
+  );
+  assert.throws(() => reconcile({ receipts: [{ id: "", cost_usd: 1 }], charges: [] }), /Receipt needs an id/);
+  assert.throws(() => reconcile({ receipts: [{ id: "a", cost_usd: 1 }, { id: "a", cost_usd: null }], charges: [{ id: "a", cost_usd: 1 }] }), /Duplicate receipt id/);
+});
+
 test("reconcile command exits 0 on a match, 1 on a gap, and 2 without files", () => {
   const dir = mkdtempSync(join(tmpdir(), "cc-recon-"));
   const receipts = join(dir, "receipts.jsonl");

@@ -15,9 +15,12 @@ export function reconcile({ receipts, charges }) {
   const unknown = [];
   const receiptOnly = [];
   const mismatched = [];
+  const seen = new Set();
   let matched = 0;
   for (const receipt of receipts) {
-    if (!receipt || typeof receipt.id !== "string") throw new Error("Receipt needs an id");
+    if (!receipt || typeof receipt.id !== "string" || !receipt.id) throw new Error("Receipt needs an id");
+    if (seen.has(receipt.id)) throw new Error("Duplicate receipt id");
+    seen.add(receipt.id);
     if (receipt.cost_usd === null) { unknown.push(receipt.id); byId.delete(receipt.id); continue; }
     if (typeof receipt.cost_usd !== "number" || !Number.isFinite(receipt.cost_usd) || receipt.cost_usd < 0) throw new Error("Receipt cost must be a non-negative number or null");
     const charge = byId.get(receipt.id);
