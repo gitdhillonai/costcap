@@ -51,4 +51,14 @@ Closed: #2, #3, #4, #7, #8, #9, #17, #18, #19, #20, #37, #38, #39, #40, #41, #46
   `Duplicate receipt id`, and the receipt-id check also rejects an empty string
   (matching the charge side). Covered by `test/reconcile.test.js` (goes red on the
   prior `src/reconcile.js`).
+- 2026-10-08: loop-alert trip-reason coverage. The fleet `evaluateAlerts`
+  (`src/hosted/alerts.js`) raises `loop_detected` on **either** shipped guardrail
+  trip reason — `spiral_detected` (#7) or `cost_velocity` (#8) — but only the
+  `spiral_detected` branch had a test. Dropping `cost_velocity` from the predicate
+  left all tests green, so a refactor could have silently stopped paging the
+  operator when the velocity breaker fires. Added a test in `test/hosted.test.js`
+  that asserts a `cost_velocity` block raises `loop_detected` AND that an ordinary
+  `budget_exceeded`/`killed` block does not (guarding against over-broadening the
+  predicate so every capped run pages as a loop). Verified red on removing the
+  `cost_velocity` branch, green on real code.
 - 2026-10-07: OpenRouter provider coverage. OpenRouter is a wired provider (in `PROVIDERS`, emitted as `OPENROUTER_BASE_URL` by `baseUrlOverrides`, listed in `docs/product-spec.md`) but had no behavioral test, while openai/anthropic/gemini each have usage-extraction fixtures. Added `test/openrouter.test.js`: `extractUsage` for OpenAI-shape OpenRouter responses (cached tokens + slashed model ids), the base-URL override, and a routed `/openrouter` metering + cap hard-stop that also exercises the unknown-model fallback rate. README enforcement-limits now lists OpenRouter among the fixture-tested providers.
