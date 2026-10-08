@@ -41,6 +41,20 @@ Closed: #2, #3, #4, #7, #8, #9, #17, #18, #19, #20, #37, #38, #39, #40, #41, #46
 
 ## Gap-analysis fixes (untracked by a GitHub issue)
 
+- 2026-10-08: cost-velocity enforcement proven through the proxy. The velocity
+  circuit breaker (#8) is the headline runaway-spend protection, but only its
+  isolated unit behavior (`test/velocity.test.js`) and the `step_budget` sibling
+  path through the proxy (`test/cli.test.js`) were tested. The proxy's
+  cost-velocity enforcement (that it feeds each call's real metered cost into the
+  breaker and hard-stops the next upstream call once the spend rate spikes) had
+  no end-to-end coverage, so a regression that fed the breaker the wrong cost,
+  recorded on the wrong edge, or dropped the pre-call rate check would leave
+  every test green while letting a cost runaway through. Added
+  `test/velocity-proxy.test.js`: a baseline of cheap metered calls followed by a
+  spike, asserting the follow-up call returns `429 breaker_open` with
+  `reason: cost_velocity`, never reaches the provider, and writes a
+  `cost_usd: 0` blocked receipt. Verified red on removing either the
+  `velocity.record` feed or the pre-call `velocity.check` in `src/proxy.js`.
 - 2026-10-07: version source-of-truth. `/health` reported a hardcoded `version: "0.0.1"` that would drift from `package.json` on the next bump. Now both the hosted `/health` endpoint and the CLI read the version from `package.json` via `src/version.js`. Added `costcap --version`/`-v` and `--help`/`-h` (plus no-args usage). Covered by `test/hosted-server.test.js` and `test/cli.test.js`.
 - 2026-10-08: reconcile duplicate/empty receipt id. `reconcile()` threw on a
   duplicate *provider charge* id but silently absorbed a duplicate *receipt* id —
