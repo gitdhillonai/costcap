@@ -1,7 +1,7 @@
 # Handoff: costcap
 
 **State:** CLI core, loop/kill guardrails, and the hosted free-beta service are
-implemented and tested locally (`npm test` green, 121 tests on 2026-10-08). This
+implemented and tested locally (`npm test` green, 123 tests on 2026-10-08). This
 is NOT the Phase-0 shell the earlier handoff described; the product is built. The
 remaining open issues are blocked on **owner residue only** (npm publish token,
 live Turnstile/Brevo proof, a deployed origin, DNS credentials, Stripe readback,
@@ -13,7 +13,17 @@ an IaC-managed Postgres). See the Owner enablement queue below.
 small tested unit, and stop at the cap for owner review. Do not perform any
 Parked-residue action.
 
-**Last tick (2026-10-08):** gap-analysis fix. Proved the cost-velocity breaker
+**Last tick (2026-10-08):** gap-analysis fix. Covered two untested
+abuse-protection branches on `/auth/request` (#12). The per-IP rate limit (five
+turnstile-passing sends per hour, then `429`) and the `sendCode`-failure rollback
+(delete the half-created challenge, return `503`) had no test, so a dropped rate
+check or a lost rollback would have passed CI. Added two tests to
+`test/hosted-server.test.js` (five `200`s then `429`; a send failure returning
+`503` with no `challengeId`, an empty `challenges` map, and recovery on retry).
+`npm test` green (123 tests) on the pinned node 22; verified red on removing the
+rate-limit check and on removing the challenge rollback.
+
+**Prior tick (2026-10-08):** gap-analysis fix. Proved the cost-velocity breaker
 (#8) enforces through the proxy, not just in isolation. The breaker's unit
 behavior and the `step_budget` sibling path (via the CLI) were tested, but the
 proxy's cost-velocity enforcement (feeding each call's real metered cost into the
@@ -25,7 +35,7 @@ blocked receipt. `npm test` green (121 tests) on the pinned node 22. Verified re
 on removing either the `velocity.record` feed or the pre-call `velocity.check` in
 `src/proxy.js`.
 
-**Prior tick (2026-10-08):** gap-analysis fix — closed a loop-alert coverage
+**Earlier tick (2026-10-08):** gap-analysis fix — closed a loop-alert coverage
 asymmetry. The fleet `evaluateAlerts` raises `loop_detected` on either
 `spiral_detected` (#7) or `cost_velocity` (#8), but only the spiral branch was
 tested, so a refactor could silently stop paging on a velocity-breaker trip.
@@ -33,7 +43,7 @@ Added a `test/hosted.test.js` test asserting a `cost_velocity` block raises
 `loop_detected` and a plain `budget_exceeded`/`killed` block does not. Verified
 red on removing the `cost_velocity` branch.
 
-**Earlier tick (2026-10-08):** gap-analysis fix — closed a reconcile asymmetry.
+**Earlier still (2026-10-08):** gap-analysis fix — closed a reconcile asymmetry.
 `reconcile()` threw on a duplicate provider-charge id but silently split a
 duplicate receipt id across `matched` and `receipt_only`, producing an incoherent
 accounting-integrity report. Now a repeated (or empty) receipt id throws, matching

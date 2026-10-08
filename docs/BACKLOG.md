@@ -41,6 +41,18 @@ Closed: #2, #3, #4, #7, #8, #9, #17, #18, #19, #20, #37, #38, #39, #40, #41, #46
 
 ## Gap-analysis fixes (untracked by a GitHub issue)
 
+- 2026-10-08: auth/request abuse-protection coverage. The signup endpoint
+  `/auth/request` (#12) has two safety branches that the hosted-server tests
+  never exercised: the per-IP rate limit (five turnstile-passing sends per hour,
+  then `429`) that bounds both the metered code mailer and the brute-force
+  surface, and the compensating rollback that deletes the half-created challenge
+  and returns `503` when `sendCode` throws. A regression that dropped the rate
+  check, flipped its `>=`, or let a send failure leave a dangling challenge (or
+  surface a generic `500`) would have left every test green. Added two tests to
+  `test/hosted-server.test.js`: five `200`s then a `429 /later/i`, and a
+  send-failure path asserting `503 /unavailable/i`, no `challengeId` returned, an
+  empty `challenges` map in the store, and recovery on the next request. Verified
+  red on removing the rate-limit check and on removing the challenge rollback.
 - 2026-10-08: cost-velocity enforcement proven through the proxy. The velocity
   circuit breaker (#8) is the headline runaway-spend protection, but only its
   isolated unit behavior (`test/velocity.test.js`) and the `step_budget` sibling

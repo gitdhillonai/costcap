@@ -6,12 +6,12 @@ import { join } from "node:path";
 import { createHostedServer } from "../src/hosted/server.js";
 
 async function fixture(t) {
-  let code, delivery = [], failDelivery = false, invites = [], failInvite = false;
+  let code, delivery = [], failDelivery = false, invites = [], failInvite = false, failCode = false;
   const storePath = join(mkdtempSync(join(tmpdir(), "cc-service-")), "store.json");
   let service;
   const origin = "http://localhost";
   const start = async () => {
-    service = createHostedServer({ storePath, origin, secureCookies: false, verifyChallenge: async (value) => value === "test-pass", sendCode: async (data) => { code = data.code; }, sendInvite: async (data) => { if (failInvite) throw new Error("mail down"); invites.push(data); }, deliverAlert: async (a) => { delivery.push(a); return [{ status: failDelivery ? "failed" : "accepted" }]; } });
+    service = createHostedServer({ storePath, origin, secureCookies: false, verifyChallenge: async (value) => value === "test-pass", sendCode: async (data) => { if (failCode) throw new Error("mail down"); code = data.code; }, sendInvite: async (data) => { if (failInvite) throw new Error("mail down"); invites.push(data); }, deliverAlert: async (a) => { delivery.push(a); return [{ status: failDelivery ? "failed" : "accepted" }]; } });
     await new Promise((r) => service.server.listen(0, "127.0.0.1", r));
   };
   await start();
@@ -27,7 +27,7 @@ async function fixture(t) {
     assert.equal(r.status, 200);
     return r;
   };
-  return { request, login, service: () => service, delivery, invites: () => invites, setFail: (v) => { failDelivery = v; }, setInviteFail: (v) => { failInvite = v; }, restart: async () => { service.server.closeAllConnections(); await new Promise((r) => service.server.close(r)); await start(); } };
+  return { request, login, service: () => service, delivery, invites: () => invites, setFail: (v) => { failDelivery = v; }, setInviteFail: (v) => { failInvite = v; }, setCodeFail: (v) => { failCode = v; }, storePath, restart: async () => { service.server.closeAllConnections(); await new Promise((r) => service.server.close(r)); await start(); } };
 }
 
 test("verified org-first login, tenant isolation, enrollment, receipt sync and restart", async (t) => {
@@ -134,4 +134,34 @@ test("verification wrong-code attempt limit persists and challenge is one-use", 
   const result = await f.request("/auth/verify", { challengeId: challenge.body.challengeId, code: "wrong" });
   assert.match(result.body.error, /expired/);
   assert.equal((await f.request("/v1/enrollment-tokens", { caps: {} })).status, 401);
+});
+
+test("auth/request is rate limited per IP after five sends in the window", async (t) => {
+  const f = await fixture(t);
+  // Each turnstile-passing request records one send against the caller IP.
+  for (let i = 0; i < 5; i++) {
+    assert.equal((await f.request("/auth/request", { email: "flood@example.invalid", turnstileToken: "test-pass" })).status, 200);
+  }
+  // The sixth within the hour is refused before any code is sent, so the
+  // metered mailer and the brute-force surface stay bounded per IP.
+  const limited = await f.request("/auth/request", { email: "flood@example.invalid", turnstileToken: "test-pass" });
+  assert.equal(limited.status, 429);
+  assert.match(limited.body.error, /later/i);
+});
+
+test("a failed verification-code send returns 503 and rolls back the challenge", async (t) => {
+  const f = await fixture(t);
+  f.setCodeFail(true);
+  const result = await f.request("/auth/request", { email: "bounce@example.invalid", turnstileToken: "test-pass" });
+  assert.equal(result.status, 503);
+  assert.match(result.body.error, /unavailable/i);
+  assert.equal(result.body.challengeId, undefined); // the caller never receives an id it cannot verify
+  // The half-created challenge must be deleted, not left dangling in the store.
+  const stored = JSON.parse(readFileSync(f.storePath, "utf8"));
+  assert.equal(Object.keys(stored.challenges).length, 0);
+  // Delivery recovered: a subsequent request issues a usable challenge.
+  f.setCodeFail(false);
+  const ok = await f.request("/auth/request", { email: "bounce@example.invalid", turnstileToken: "test-pass" });
+  assert.equal(ok.status, 200);
+  assert.ok(ok.body.challengeId);
 });
