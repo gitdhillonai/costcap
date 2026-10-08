@@ -2,10 +2,34 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { spawnSync, spawn } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseWrapArgs } from "../src/cli.js";
+
+test("costcap --version prints the package.json version and exits 0", () => {
+  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  for (const flag of ["--version", "-v", "version"]) {
+    const r = spawnSync(process.execPath, ["src/cli.js", flag], { encoding: "utf8" });
+    assert.equal(r.status, 0, `${flag} should exit 0`);
+    assert.equal(r.stdout.trim(), pkg.version);
+  }
+});
+
+test("costcap --help and no args print usage and exit 0", () => {
+  for (const argv of [["src/cli.js", "--help"], ["src/cli.js", "-h"], ["src/cli.js"]]) {
+    const r = spawnSync(process.execPath, argv, { encoding: "utf8" });
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /usage: costcap wrap/);
+  }
+});
+
+test("costcap with an unknown command exits 2 with usage on stderr", () => {
+  const r = spawnSync(process.execPath, ["src/cli.js", "bogus"], { encoding: "utf8" });
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /unknown command "bogus"/);
+  assert.match(r.stderr, /usage: costcap wrap/);
+});
 
 test("parseWrapArgs reads --cap and the command after --", () => {
   const o = parseWrapArgs(["--cap", "5.00", "--", "node", "-e", "1"]);

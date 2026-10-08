@@ -6,6 +6,7 @@ import { randomBytes, randomUUID, randomInt } from "node:crypto";
 import { openStore } from "./store.js";
 import { hashToken, validatePolicy } from "./policy.js";
 import { evaluateAlerts, auditEntry } from "./alerts.js";
+import { VERSION } from "../version.js";
 const token = () => randomBytes(32).toString("base64url");
 const fail = (status, message) => { const err = new Error(message); err.status = status; throw err; };
 const audit = (s, orgId, actor, action, target, detail = {}) => s.audit.push(auditEntry({ orgId, actor, action, target, detail }));
@@ -50,7 +51,7 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, sendI
         const ui = uiResponse(path, turnstileSiteKey);
         if (ui) return res.writeHead(200, ui.headers).end(ui.body);
       }
-      if (req.method === "GET" && path === "/health") return json(200, { status: "ok", product: "CostCap", beta: true, billing: "disabled", persistence: "single-process-file", version: "0.0.1", sha: process.env.COSTCAP_GIT_SHA || null });
+      if (req.method === "GET" && path === "/health") return json(200, { status: "ok", product: "CostCap", beta: true, billing: "disabled", persistence: "single-process-file", version: VERSION, sha: process.env.COSTCAP_GIT_SHA || null });
       const browserMutation = req.method !== "GET" && !req.headers.authorization;
       if (browserMutation && req.headers.origin !== origin) fail(403, "Origin rejected");
       let text = "";

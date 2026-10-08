@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHostedServer } from "../src/hosted/server.js";
@@ -80,6 +80,9 @@ test("billing stays disabled and there is no charge route", async (t) => {
   assert.equal(health.body.beta, true);
   assert.equal(health.body.persistence, "single-process-file");
   assert.equal(health.body.sha, null);
+  // /health reports the real package version, never a hardcoded copy that can drift.
+  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(health.body.version, pkg.version);
   const owner = await f.login("billing@example.invalid");
   const fleet = await f.request("/v1/fleet", undefined, owner.cookie);
   assert.equal(fleet.body.billing, "disabled");

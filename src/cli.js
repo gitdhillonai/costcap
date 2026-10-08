@@ -15,6 +15,15 @@ import { startMeteringProxy, baseUrlOverrides } from "./proxy.js";
 import { createCapEngine, loadReceipts } from "./cap.js";
 import { createVelocityBreaker } from "./velocity.js";
 import { createKillCheck, kill, resume, DEFAULT_KILL_FILE } from "./kill.js";
+import { VERSION } from "./version.js";
+
+const USAGE = "usage: costcap wrap [--cap USD] [--day-cap USD] [--month-cap USD] [--max-steps N] [--velocity-multiple X] [--receipts FILE] [--enrollment FILE] [--kill-file FILE] -- <command...>\n" +
+  "       costcap check [--cap USD] [--receipts FILE]\n" +
+  "       costcap reconcile --receipts FILE --provider FILE\n" +
+  "       costcap enroll --url URL --name NAME [--enrollment FILE]\n" +
+  "       costcap mcp [--cap USD] [--receipts FILE]\n" +
+  "       costcap kill [note] [--kill-file FILE] | costcap resume [--kill-file FILE]\n" +
+  "       costcap --version | costcap --help";
 
 export function parseWrapArgs(argv) {
   const sep = argv.indexOf("--");
@@ -106,7 +115,13 @@ export async function wrap(argv) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [cmd, ...rest] = process.argv.slice(2);
-  if (cmd === "wrap") {
+  if (cmd === "--version" || cmd === "-v" || cmd === "version") {
+    console.log(VERSION);
+    process.exit(0);
+  } else if (cmd === "--help" || cmd === "-h" || cmd === "help" || cmd === undefined) {
+    console.log(USAGE);
+    process.exit(0);
+  } else if (cmd === "wrap") {
     wrap(rest).then((c) => process.exit(c), (e) => { console.error(`costcap: ${e.message}`); process.exit(2); });
   } else if (cmd === "check" || cmd === "mcp") {
     try {
@@ -144,7 +159,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const file = i >= 0 ? rest[i + 1] : DEFAULT_KILL_FILE;
     console.error(resume(file) ? "costcap: resumed." : "costcap: nothing to resume (not killed).");
   } else {
-    console.error("usage: costcap wrap [--cap USD] -- <command...> | costcap check | costcap reconcile --receipts FILE --provider FILE | costcap kill [note] | costcap resume");
+    console.error(`costcap: unknown command "${cmd}"\n${USAGE}`);
     process.exit(2);
   }
 }
