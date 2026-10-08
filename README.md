@@ -34,8 +34,9 @@ CostCap. The local proxy binds to 127.0.0.1.
   existing unknown-cost receipts block restart. Never replace unknown cost with
   zero without evidence from the provider.
 - SSE responses are buffered, not delivered in real time. OpenAI chat/Responses,
-  Anthropic start/delta usage, and Gemini usageMetadata have local fixture tests.
-  Provider billing reconciliation and live SDK compatibility remain unverified.
+  Anthropic start/delta usage, Gemini usageMetadata, and OpenRouter (OpenAI-shape)
+  usage have local fixture tests. Provider billing reconciliation and live SDK
+  compatibility remain unverified.
 - Anthropic cache creation is estimated at the input rate. Provider-specific
   cache-write multipliers, other billable features and dynamic pricing may differ.
 - The default kill file is relative to the working directory. Only agents sharing

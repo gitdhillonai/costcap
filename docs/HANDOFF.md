@@ -1,7 +1,7 @@
 # Handoff: costcap
 
 **State:** CLI core, loop/kill guardrails, and the hosted free-beta service are
-implemented and tested locally (`npm test` green, 115 tests on 2026-10-07). This
+implemented and tested locally (`npm test` green, 118 tests on 2026-10-07). This
 is NOT the Phase-0 shell the earlier handoff described; the product is built. The
 remaining open issues are blocked on **owner residue only** (npm publish token,
 live Turnstile/Brevo proof, a deployed origin, DNS credentials, Stripe readback,
@@ -13,12 +13,17 @@ an IaC-managed Postgres). See the Owner enablement queue below.
 small tested unit, and stop at the cap for owner review. Do not perform any
 Parked-residue action.
 
-**Last tick (2026-10-07):** gap-analysis fix — the product version is now read
-from `package.json` via `src/version.js` and consumed by both the hosted
-`/health` endpoint (previously a hardcoded `"0.0.1"` that would drift) and the
-CLI. Added top-level `costcap --version`/`-v` and `--help`/`-h` (and no-args
-usage). Covered by `test/hosted-server.test.js` (health version equals
-package.json) and `test/cli.test.js` (version/help/unknown-command).
+**Last tick (2026-10-07):** gap-analysis fix — closed the OpenRouter coverage
+gap. OpenRouter is wired as a provider and emitted as `OPENROUTER_BASE_URL` but
+had no behavioral test, unlike the other three providers. Added
+`test/openrouter.test.js` covering OpenAI-shape usage extraction (cached tokens,
+slashed model ids), the base-URL override, and a routed `/openrouter` metering +
+cap hard-stop that exercises the unknown-model fallback rate. README
+enforcement-limits now lists OpenRouter among the fixture-tested providers.
+
+**Prior tick (2026-10-07):** version source-of-truth — the product version is
+read from `package.json` via `src/version.js` and consumed by both the hosted
+`/health` endpoint and the CLI; added `--version`/`--help`.
 
 **Verify / resume:**
 ```bash
