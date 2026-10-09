@@ -1,15 +1,18 @@
 // Same-origin UI for the free beta. No external analytics or billing flows.
-export function uiResponse(path, siteKey = '') {
+import { jsonLdScript, robotsTxt, sitemapXml, PUBLIC_ORIGIN } from './seo.js';
+export function uiResponse(path, siteKey = '', origin = PUBLIC_ORIGIN) {
   const headers = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff',
     'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self'; connect-src 'self' https://challenges.cloudflare.com; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" };
-  if (path === '/') return { body: page, headers: { ...headers, 'content-type': 'text/html; charset=utf-8' } };
+  if (path === '/') return { body: page(origin), headers: { ...headers, 'content-type': 'text/html; charset=utf-8' } };
+  if (path === '/robots.txt') return { body: robotsTxt(origin), headers: { ...headers, 'content-type': 'text/plain; charset=utf-8' } };
+  if (path === '/sitemap.xml') return { body: sitemapXml(origin), headers: { ...headers, 'content-type': 'application/xml; charset=utf-8' } };
   if (path === '/assets/app.css') return { body: css, headers: { ...headers, 'content-type': 'text/css; charset=utf-8' } };
   if (path === '/assets/app.js') return { body: js, headers: { ...headers, 'content-type': 'text/javascript; charset=utf-8' } };
   if (path === '/ui/config') return { body: JSON.stringify({ siteKey }), headers: { ...headers, 'content-type': 'application/json' } };
   return null;
 }
-const page = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Free beta spend guardrails for your AI agent fleet. Guardrails, not guarantees."><title>CostCap | Fleet guardrails</title><link rel="stylesheet" href="/assets/app.css"><script src="/assets/app.js" defer></script></head>
+const page = (origin) => `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Free beta spend guardrails for your AI agent fleet. Guardrails, not guarantees."><title>CostCap | Fleet guardrails</title><link rel="canonical" href="${origin}"><link rel="stylesheet" href="/assets/app.css"><script src="/assets/app.js" defer></script><script type="application/ld+json">${jsonLdScript(origin)}</script></head>
 <body><header><a class="brand" href="/">CostCap<span class="badge">FREE BETA</span></a><button id="logout" hidden>Sign out</button></header>
 <main><section id="login" class="hero"><div><p class="eyebrow">KEEP YOUR AGENTS IN BUDGET</p><h1>Know the spend.<br>Control the fleet.</h1><p class="lede">Set caps, catch retry loops, and freeze enrolled agents from one place.</p><p class="boundary">Guardrails, not guarantees. Only proxy-routed traffic is controlled. Receipt-based caps can overshoot by one accepted request.</p><div class="proof"><span>CLI stays free</span><span>No card. No charges.</span><span>Separate org per new email</span></div></div>
 <div class="card"><h2>Open your workspace</h2><p>Sign in with an email code. A new email creates a separate organization. Shared company domains do not grant access to another workspace.</p><form id="request"><label for="email">Email address</label><input id="email" type="email" autocomplete="email" required maxlength="295" placeholder="you@company.com"><div id="challenge"></div><button class="primary" id="requestButton" type="submit" disabled>Send sign-in code</button></form><form id="verify" hidden><label for="code">8-digit email code</label><input id="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{8}" maxlength="8" required><button class="primary" type="submit">Verify and open workspace</button><button id="restart" type="button">Use another email</button><p>Code expires in 10 minutes.</p></form><p id="loginStatus" role="status" aria-live="polite"></p></div></section>

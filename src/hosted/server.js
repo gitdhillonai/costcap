@@ -48,7 +48,7 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, sendI
     try {
       const path = new URL(req.url, origin).pathname;
       if (req.method === "GET") {
-        const ui = uiResponse(path, turnstileSiteKey);
+        const ui = uiResponse(path, turnstileSiteKey, origin);
         if (ui) return res.writeHead(200, ui.headers).end(ui.body);
       }
       if (req.method === "GET" && path === "/health") return json(200, { status: "ok", product: "CostCap", beta: true, billing: "disabled", persistence: "single-process-file", version: VERSION, sha: process.env.COSTCAP_GIT_SHA || null });
