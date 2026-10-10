@@ -33,7 +33,7 @@ export async function createStripeBilling({ secretKey, webhookSecret, accountId,
     return res.json();
   };
   const account = await request('/account');
-  if (account.id !== accountId || account.business_profile?.name !== 'Persoon.ai Inc' || !account.charges_enabled) throw new Error('Persoon.ai Inc live account readback failed');
+  if (accountId !== 'acct_1TdlLm0Yt0O6HtVs' || account.id !== accountId || !account.charges_enabled) throw new Error('Persoon.ai Inc live account readback failed');
   const price = await request(`/prices/${encodeURIComponent(priceId)}?expand[]=product`);
   if (!price.active || price.livemode !== true || price.currency !== 'usd' || price.unit_amount !== 1900 || price.recurring?.interval !== 'month' || price.recurring?.interval_count !== 1 || price.recurring?.usage_type !== 'licensed' || !price.product?.active || price.product.metadata?.app !== 'costcap') throw new Error('CostCap $19/month price readback failed');
   const publicStatus = (s, orgId) => {

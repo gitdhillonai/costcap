@@ -16,9 +16,9 @@ function fixture(overrides = {}) {
  sub={id:'sub_fixture',livemode:true,customer:'cus_fixture',status:'active',metadata:{app:'costcap',org_id:'org1'},items:{data:[{price:{id:'price_fixture'},quantity:1}]}};
  const invoice={id:'in_fixture',livemode:true,status:'paid',currency:'usd',amount_paid:100,customer:'cus_fixture',subscription:sub.id};
  const event={id:'evt_fixture',livemode:true,type:'invoice.paid',data:{object:invoice}};
- const objects={ '/account':{id:'acct_fixture',charges_enabled:true,business_profile:{name:'Persoon.ai Inc'}},
+ const objects={ '/account':{id:'acct_1TdlLm0Yt0O6HtVs',charges_enabled:true,business_profile:{name:'Persoon.ai Inc'}},
  '/prices/price_fixture?expand[]=product':{active:true,livemode:true,currency:'usd',unit_amount:1900,recurring:{interval:'month',interval_count:1,usage_type:'licensed'},product:{active:true,metadata:{app:'costcap'}}}, ...overrides };
- const options={store,secretKey:'rk_live_fixture',webhookSecret:secret,accountId:'acct_fixture',priceId:'price_fixture',origin:'https://app.costcap.dev',now:()=>clock,
+ const options={store,secretKey:'rk_live_fixture',webhookSecret:secret,accountId:'acct_1TdlLm0Yt0O6HtVs',priceId:'price_fixture',origin:'https://app.costcap.dev',now:()=>clock,
  fetchImpl:async(url,opts)=>{const path=url.replace('https://api.stripe.com/v1',''); calls.push({path,...opts});let data=objects[path];
  if(path==='/checkout/sessions')data=session;
  if(path==='/checkout/sessions/cs_fixture')data=session;
@@ -39,7 +39,7 @@ test('Stripe signatures reject altered, expired and test-mode events',()=>{
 });
 test('billing fails closed for wrong account, price, metadata, currency and test key',async()=>{
  const f=fixture();await assert.rejects(createStripeBilling({...f.options,secretKey:'sk_test_fixture'}),/Live/);
- for(const account of [{id:'acct_other',charges_enabled:true,business_profile:{name:'Persoon.ai Inc'}},{id:'acct_fixture',charges_enabled:false,business_profile:{name:'Persoon.ai Inc'}},{id:'acct_fixture',charges_enabled:true,business_profile:{name:'Another business'}}]){
+ for(const account of [{id:'acct_other',charges_enabled:true,business_profile:{name:'Persoon.ai Inc'}},{id:'acct_1TdlLm0Yt0O6HtVs',charges_enabled:false,business_profile:{name:'Persoon.ai Inc'}},{id:'acct_other',charges_enabled:true,business_profile:{name:'Persoon.ai Inc'}}]){
  const x=fixture({'/account':account});await assert.rejects(createStripeBilling(x.options),/account readback/);}
  for(const change of [{unit_amount:2000},{currency:'eur'},{livemode:false},{active:false},{recurring:{interval:'year'}},{product:{active:true,metadata:{app:'another'}}}]){
  const x=fixture();const price=await x.options.fetchImpl('https://api.stripe.com/v1/prices/price_fixture?expand[]=product',{}).then(r=>r.json());
@@ -89,3 +89,7 @@ test('billing HTTP routes enforce verified owner and origin; signed webhook is s
  const r=await fetch(base+'/billing/webhook',{method:'POST',headers:{'stripe-signature':sign(raw)},body:raw});assert.equal(r.status,200);
  assert.equal((await fetch(base+'/billing/webhook',{method:'POST',body:raw})).status,400);
 });
+
+test('configured account id cannot authorize a different account even when readback matches',async()=>{const f=fixture({'/account':{id:'acct_other',charges_enabled:true}});await assert.rejects(createStripeBilling({...f.options,accountId:'acct_other'}),/account readback/)});
+
+test('approved account readback needs no business name field',async()=>{const f=fixture({'/account':{id:'acct_1TdlLm0Yt0O6HtVs',charges_enabled:true}});await createStripeBilling(f.options)});
