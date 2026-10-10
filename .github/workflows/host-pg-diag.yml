@@ -1,0 +1,28 @@
+name: host-pg-diag
+# Read-only: which Postgres exists on the host, listening ports, firewall. No changes.
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Inspect
+        env:
+          COSTCAP_DEPLOY_HOST: ${{ secrets.COSTCAP_DEPLOY_HOST }}
+          COSTCAP_DEPLOY_SSH_KEY: ${{ secrets.COSTCAP_DEPLOY_SSH_KEY }}
+        run: |
+          install -m 600 /dev/null /tmp/id; printf '%s\n' "$COSTCAP_DEPLOY_SSH_KEY" > /tmp/id
+          S="ssh -i /tmp/id -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=20"
+          [ -f infra/ssh/costcap-deploy.known_hosts ] && S="$S -o UserKnownHostsFile=$PWD/infra/ssh/costcap-deploy.known_hosts -o StrictHostKeyChecking=yes" || S="$S -o StrictHostKeyChecking=accept-new"
+          $S "$COSTCAP_DEPLOY_HOST" '
+            id; echo "== postgres-ish containers"; docker ps --format "{{.Names}} | {{.Image}} | {{.Ports}} | {{.Status}}" | grep -iE "postgres|supabase|pgbouncer|supavisor" 
+            echo "== listening"; (ss -ltnp 2>/dev/null || ss -ltn) | grep -E ":(5432|6543|5433|54[0-9][0-9])\b" 
+            echo "== ufw"; (sudo -n ufw status 2>&1 || ufw status 2>&1) | head -15
+            echo "== host pg"; which psql pg_lsclusters 2>&1 | head -2; docker ps -a --format "{{.Names}}" | wc -l
+            echo "== sudo"; sudo -n true 2>&1 | head -1; echo "== disk"; df -h / | tail -1
+          ' 2>&1 | sed -E "s/(KEY|SECRET|TOKEN|PASSWORD)=[^ ]+/\1=***/Ig"
+          rm -f /tmp/id
