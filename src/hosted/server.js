@@ -13,9 +13,11 @@ const audit = (s, orgId, actor, action, target, detail = {}) => s.audit.push(aud
 
 export function createHostedServer({ storePath, verifyChallenge, sendCode, sendInvite, deliverAlert,
   now = () => Date.now(), secureCookies = true, origin, turnstileSiteKey = "", bodyLimit = 256_000,
-  requestLog = () => {} } = {}) {
+  requestLog = () => {}, billingFactory } = {}) {
   if (!storePath || !verifyChallenge || !sendCode || !origin) throw new Error("Store, origin, Turnstile verifier and authorized code sender required");
   const store = openStore(storePath);
+  let billing;
+  const billingReady = billingFactory ? Promise.resolve().then(() => billingFactory(store)).then(b => { billing = b; }) : Promise.resolve();
   const rate = new Map();
   const sessionUser = (s, req) => {
     const cookie = /(?:^|;\s*)costcap_session=([^;]+)/.exec(req.headers.cookie ?? "")?.[1];
@@ -48,14 +50,23 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, sendI
     try {
       const path = new URL(req.url, origin).pathname;
       if (req.method === "GET") {
-        const ui = uiResponse(path, turnstileSiteKey, origin);
+        const ui = uiResponse(path, turnstileSiteKey, origin, Boolean(billing));
         if (ui) return res.writeHead(200, ui.headers).end(ui.body);
       }
-      if (req.method === "GET" && path === "/health") return json(200, { status: "ok", product: "CostCap", beta: true, billing: "disabled", persistence: "single-process-file", version: VERSION, sha: process.env.COSTCAP_GIT_SHA || null });
+      if (req.method === "GET" && path === "/health") return json(200, { status: "ok", product: "CostCap", beta: true, billing: billing ? "enabled" : "disabled", persistence: "single-process-file", version: VERSION, sha: process.env.COSTCAP_GIT_SHA || null });
       const browserMutation = req.method !== "GET" && !req.headers.authorization;
-      if (browserMutation && req.headers.origin !== origin) fail(403, "Origin rejected");
+      if (browserMutation && !(billing && path === "/billing/webhook") && req.headers.origin !== origin) fail(403, "Origin rejected");
       let text = "";
       for await (const chunk of req) { text += chunk; if (Buffer.byteLength(text) > bodyLimit) fail(413, "Body too large"); }
+      if (billing && path === "/billing/webhook" && req.method === "POST") return json(200, await billing.webhook(text, req.headers["stripe-signature"]));
+      if (billing && path.startsWith("/billing/") && ["GET", "POST"].includes(req.method)) {
+        if (req.method === "POST" && req.headers.origin !== origin) fail(403, "Origin rejected");
+        const user = store.read(s => sessionUser(s, req));
+        if (path === "/billing/status" && req.method === "GET") return json(200, await billing.status(user.orgId));
+        if (user.role !== "owner") fail(403, "Workspace owner required");
+        if (path === "/billing/checkout" && req.method === "POST") return json(200, await billing.checkout(user));
+        if (path === "/billing/portal" && req.method === "POST") return json(200, await billing.portal(user.orgId));
+      }
       let body;
       try { body = text ? JSON.parse(text) : {}; } catch { fail(400, "Invalid JSON"); }
       if (path === "/auth/request" && req.method === "POST") {
@@ -170,7 +181,7 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, sendI
             receipts: Object.values(s.receipts).filter((r) => r.orgId === u.orgId),
             audit: s.audit.filter((e) => e.org_id === u.orgId), alerts: Object.values(s.alerts).filter((a) => a.orgId === u.orgId),
             role: u.role, invitations: ["owner", "admin"].includes(u.role) ? Object.values(s.invitations ?? {}).filter((item) => item.orgId === u.orgId && item.expires > now()).map(({ invitedBy, ...item }) => item) : [],
-            beta: true, billing: "disabled" };
+            beta: true, billing: billing ? "enabled" : "disabled" };
         }));
       }
       if (path === "/v1/invitations" && req.method === "POST") {
@@ -259,5 +270,5 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, sendI
     }
     return queued.length;
   }
-  return { server, evaluateFleetAlerts };
+  return { server, billingReady, evaluateFleetAlerts };
 }

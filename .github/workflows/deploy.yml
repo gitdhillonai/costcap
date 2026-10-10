@@ -38,4 +38,5 @@ jobs:
         env:
           COSTCAP_ORIGIN: ${{ secrets.COSTCAP_ORIGIN }}
           COSTCAP_EXPECT_SHA: ${{ github.sha }}
+          COSTCAP_EXPECT_BILLING: ${{ vars.COSTCAP_EXPECT_BILLING || 'disabled' }}
         run: node scripts/canary.mjs "$COSTCAP_ORIGIN"

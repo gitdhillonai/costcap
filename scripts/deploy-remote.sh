@@ -33,7 +33,13 @@ if have["COSTCAP_EMAIL_PROVIDER"] != "brevo":
 if not have["COSTCAP_ORIGIN"].startswith("https://"):
     print("deploy: COSTCAP_ORIGIN must be https", file=sys.stderr)
     raise SystemExit(2)
-lines = [f"export {key}={shlex.quote(have[key])}" for key in need]
+optional = ["COSTCAP_BILLING", "COSTCAP_STRIPE_SECRET_KEY", "COSTCAP_STRIPE_WEBHOOK_SECRET", "COSTCAP_STRIPE_ACCOUNT_ID", "COSTCAP_STRIPE_PRICE_ID"]
+if have.get("COSTCAP_BILLING") == "enabled":
+    missing_billing = [key for key in optional[1:] if not have.get(key)]
+    if missing_billing:
+        print("deploy: missing " + ", ".join(missing_billing), file=sys.stderr)
+        raise SystemExit(2)
+lines = [f"export {key}={shlex.quote(have[key])}" for key in need + optional if key in have]
 pathlib.Path("/tmp/costcap-env.sh").write_text("\n".join(lines) + "\n")
 PY
 set -a
@@ -49,7 +55,7 @@ docker compose -f compose.production.yaml -p costcap build
 docker compose -f compose.production.yaml -p costcap up -d --no-build --force-recreate
 i=0
 while [ "$i" -lt 30 ]; do
-  if docker exec costcap-costcap-1 node -e 'fetch("http://127.0.0.1:"+(process.env.PORT||3000)+"/health").then(r=>r.json()).then(j=>{if(j.billing==="disabled"&&j.persistence==="single-process-file"&&j.sha===process.env.COSTCAP_GIT_SHA)process.exit(0);process.exit(1)}).catch(()=>process.exit(1))'; then
+  if docker exec costcap-costcap-1 node -e 'fetch("http://127.0.0.1:"+(process.env.PORT||3000)+"/health").then(r=>r.json()).then(j=>{if(j.billing===(process.env.COSTCAP_BILLING==="enabled"?"enabled":"disabled")&&j.persistence==="single-process-file"&&j.sha===process.env.COSTCAP_GIT_SHA)process.exit(0);process.exit(1)}).catch(()=>process.exit(1))'; then
     echo "deploy: health sha matched"
     exit 0
   fi
