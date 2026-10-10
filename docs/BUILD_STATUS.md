@@ -7,3 +7,4 @@
 - 2026-10-09: billing enabled via deploy-billing workflow (Stripe account/price readback gate at startup; no charges made; auto-rolls the flag off on canary failure).
 
 - 2026-10-09: safe billing startup: a failed Stripe readback at boot now keeps the app up with billing disabled (canary still fails when billing is expected). Cause of the earlier crash-loop: restricted key lacked Account read (403).
+- 2026-10-09: PR copy v4: enabled landing says "Free beta. Optional $19/month plan." (source/test; deploy follows).
