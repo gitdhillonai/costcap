@@ -39,6 +39,19 @@ services:
       - traefik.http.routers.cc-https.tls.certresolver=letsencrypt
       - traefik.http.routers.cc-https.middlewares=gzip
       - traefik.http.services.cc.loadbalancer.server.port=3000
+      - traefik.http.middlewares.cc-apex.redirectregex.regex=^https?://[^/]+/?(.*)
+      - traefik.http.middlewares.cc-apex.redirectregex.replacement=https://app.costcap.dev/$${1}
+      - traefik.http.middlewares.cc-apex.redirectregex.permanent=true
+      - traefik.http.routers.cc-apex-http.entryPoints=http
+      - traefik.http.routers.cc-apex-http.rule=Host(`costcap.dev`) || Host(`www.costcap.dev`)
+      - traefik.http.routers.cc-apex-http.middlewares=cc-apex
+      - traefik.http.routers.cc-apex-http.service=cc
+      - traefik.http.routers.cc-apex-https.entryPoints=https
+      - traefik.http.routers.cc-apex-https.rule=Host(`costcap.dev`) || Host(`www.costcap.dev`)
+      - traefik.http.routers.cc-apex-https.tls=true
+      - traefik.http.routers.cc-apex-https.tls.certresolver=letsencrypt
+      - traefik.http.routers.cc-apex-https.middlewares=cc-apex
+      - traefik.http.routers.cc-apex-https.service=cc
     deploy:
       replicas: 1
 networks:
