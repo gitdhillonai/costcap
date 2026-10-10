@@ -1,0 +1,30 @@
+name: host-diag
+# Read-only host inspection over the existing deploy key (docker ps, traefik routers, health). No changes.
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Inspect
+        env:
+          COSTCAP_DEPLOY_HOST: ${{ secrets.COSTCAP_DEPLOY_HOST }}
+          COSTCAP_DEPLOY_SSH_KEY: ${{ secrets.COSTCAP_DEPLOY_SSH_KEY }}
+        run: |
+          install -m 600 /dev/null /tmp/id; printf '%s\n' "$COSTCAP_DEPLOY_SSH_KEY" > /tmp/id
+          S="ssh -i /tmp/id -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=20"
+          [ -f infra/ssh/costcap-deploy.known_hosts ] && S="$S -o UserKnownHostsFile=$PWD/infra/ssh/costcap-deploy.known_hosts -o StrictHostKeyChecking=yes" || S="$S -o StrictHostKeyChecking=accept-new"
+          $S "$COSTCAP_DEPLOY_HOST" '
+            echo "== docker ps"; docker ps -a --format "{{.Names}} | {{.Image}} | {{.Status}} | {{.Ports}}" | head -40
+            echo "== costcap labels"; docker inspect costcap-costcap-1 --format "{{json .Config.Labels}}" 2>&1 | tr "," "\n" | grep -E "traefik|coolify" | head -20
+            echo "== routers using costcap.dev"; docker ps -q | xargs -r docker inspect --format "{{.Name}} {{range \$k,\$v := .Config.Labels}}{{if or (eq (printf \"%.5s\" \$k) \"traef\")}}{{\$k}}={{\$v}} {{end}}{{end}}" 2>/dev/null | grep -i "costcap" | cut -c1-600
+            echo "== coolify proxy dynamic conf"; ls /data/coolify/proxy/dynamic 2>&1 | head; grep -ril costcap /data/coolify/proxy/dynamic 2>/dev/null | head
+            echo "== health in container"; docker exec costcap-costcap-1 node -e "fetch(\"http://127.0.0.1:3000/health\").then(r=>r.text()).then(console.log)" 2>&1 | head -3
+            echo "== recent proxy logs"; docker logs --tail 15 coolify-proxy 2>&1 | cut -c1-250
+            echo "== /opt/costcap"; ls /opt/costcap /opt/costcap/src 2>&1 | head -20
+          ' 2>&1 | sed -E 's/(KEY|SECRET|TOKEN|PASSWORD)=[^ ]+/\1=***/Ig'
+          rm -f /tmp/id
