@@ -19,12 +19,11 @@ jobs:
           S="ssh -i /tmp/id -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=20"
           [ -f infra/ssh/costcap-deploy.known_hosts ] && S="$S -o UserKnownHostsFile=$PWD/infra/ssh/costcap-deploy.known_hosts -o StrictHostKeyChecking=yes" || S="$S -o StrictHostKeyChecking=accept-new"
           $S "$COSTCAP_DEPLOY_HOST" '
-            echo "== docker ps"; docker ps -a --format "{{.Names}} | {{.Image}} | {{.Status}} | {{.Ports}}" | head -40
-            echo "== costcap labels"; docker inspect costcap-costcap-1 --format "{{json .Config.Labels}}" 2>&1 | tr "," "\n" | grep -E "traefik|coolify" | head -20
-            echo "== routers using costcap.dev"; docker ps -q | xargs -r docker inspect --format "{{.Name}} {{range \$k,\$v := .Config.Labels}}{{if or (eq (printf \"%.5s\" \$k) \"traef\")}}{{\$k}}={{\$v}} {{end}}{{end}}" 2>/dev/null | grep -i "costcap" | cut -c1-600
-            echo "== coolify proxy dynamic conf"; ls /data/coolify/proxy/dynamic 2>&1 | head; grep -ril costcap /data/coolify/proxy/dynamic 2>/dev/null | head
-            echo "== health in container"; docker exec costcap-costcap-1 node -e "fetch(\"http://127.0.0.1:3000/health\").then(r=>r.text()).then(console.log)" 2>&1 | head -3
-            echo "== recent proxy logs"; docker logs --tail 15 coolify-proxy 2>&1 | cut -c1-250
-            echo "== /opt/costcap"; ls /opt/costcap /opt/costcap/src 2>&1 | head -20
+            echo "== ulhel labels"; docker inspect ulhel33ckh6ukvvn2wo9kcms-211006418705 --format "{{json .Config.Labels}}" | tr "," "\n" | grep -E "traefik|coolify.(name|fqdn|resourceName)|coolify.applicationId" | cut -c1-400
+            echo "== ulhel state"; docker inspect ulhel33ckh6ukvvn2wo9kcms-211006418705 --format "{{.Name}} {{.State.Status}} started={{.State.StartedAt}} restart={{.HostConfig.RestartPolicy.Name}}"
+            echo "== any container w/ costcap.dev in traefik rule"; for c in $(docker ps -q); do docker inspect $c --format "{{.Name}} {{range \$k,\$v := .Config.Labels}}{{\$v}} {{end}}" | grep -i "costcap.dev" | cut -c1-300; done
+            echo "== dynamic/default_redirect_503.yaml"; cat /data/coolify/proxy/dynamic/default_redirect_503.yaml | head -30
+            echo "== www-permanent-redirects (costcap lines)"; grep -n -i costcap /data/coolify/proxy/dynamic/www-permanent-redirects.yaml | head
+            echo "== traefik routers api"; curl -s localhost:8080/api/http/routers 2>/dev/null | head -c 100
           ' 2>&1 | sed -E 's/(KEY|SECRET|TOKEN|PASSWORD)=[^ ]+/\1=***/Ig'
           rm -f /tmp/id
