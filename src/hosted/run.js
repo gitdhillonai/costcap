@@ -1,10 +1,11 @@
+import { createStripeBilling } from "./billing.js";
 import { createTransactionalEmail } from "./email.js";
 import { createHostedServer } from "./server.js";
 import { createAlertDelivery } from "./delivery.js";
 import { verifyProductionChallenge } from "./turnstile.js";
 const required = (key) => { if (!process.env[key]) throw new Error(`${key} required`); return process.env[key]; };
 if (process.env.COSTCAP_TURNSTILE_FIXTURE || process.env.COSTCAP_EMAIL_FIXTURE) throw new Error("Production launcher rejects test fixtures");
-if (process.env.COSTCAP_BILLING) throw new Error("Billing stays disabled until a Stripe readback exists");
+if (process.env.COSTCAP_BILLING && process.env.COSTCAP_BILLING !== "enabled") throw new Error("Unknown billing setting");
 const origin = required("COSTCAP_ORIGIN");
 if (new URL(origin).protocol !== "https:") throw new Error("Production origin must be HTTPS");
 const turnstileKey = required("TURNSTILE_SECRET_KEY");
@@ -16,8 +17,12 @@ const emailTo = process.env.COSTCAP_ALERT_EMAILS?.split(",").map((x) => x.trim()
 const authorizedOrg = process.env.COSTCAP_ALERT_ORG_ID;
 const sendEmail = createTransactionalEmail({ provider: "brevo", apiKey: emailKey, from });
 const delivery = createAlertDelivery({ emailKey, emailFrom: from, emailTo, slackWebhook: process.env.COSTCAP_SLACK_WEBHOOK });
-const { server, evaluateFleetAlerts } = createHostedServer({
+const { server, evaluateFleetAlerts, billingReady } = createHostedServer({
   origin,
+  billingFactory: process.env.COSTCAP_BILLING === "enabled" ? store => createStripeBilling({
+    store, origin, secretKey: required("COSTCAP_STRIPE_SECRET_KEY"), webhookSecret: required("COSTCAP_STRIPE_WEBHOOK_SECRET"),
+    accountId: required("COSTCAP_STRIPE_ACCOUNT_ID"), priceId: required("COSTCAP_STRIPE_PRICE_ID"),
+  }) : undefined,
   turnstileSiteKey: required("TURNSTILE_SITE_KEY"),
   storePath: process.env.COSTCAP_STORE_PATH ?? "/data/costcap.json",
   verifyChallenge: (response, remoteip) => verifyProductionChallenge({ response, remoteip, secret: turnstileKey, origin }),
@@ -31,6 +36,7 @@ const { server, evaluateFleetAlerts } = createHostedServer({
   deliverAlert: (alert) => authorizedOrg && alert.orgId === authorizedOrg ? delivery(alert) : [{ status: "unconfigured" }],
   requestLog: (line) => process.stderr.write(`${line}\n`),
 });
+await billingReady;
 let alertRunning = false;
 const interval = setInterval(async () => {
   if (alertRunning) return;
@@ -38,6 +44,6 @@ const interval = setInterval(async () => {
   try { await evaluateFleetAlerts(); } catch { console.error("costcap: alert sweep failed"); }
   finally { alertRunning = false; }
 }, 60_000);
-server.listen(Number(process.env.PORT ?? 3000), "0.0.0.0", () => console.error("costcap: beta service ready; billing disabled"));
+server.listen(Number(process.env.PORT ?? 3000), "0.0.0.0", () => console.error("costcap: beta service ready"));
 const stop = () => { clearInterval(interval); server.close(() => process.exit(0)); };
 process.on("SIGTERM", stop); process.on("SIGINT", stop);

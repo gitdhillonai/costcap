@@ -33,11 +33,12 @@ test("the default server and a billing flag do not create a charge route", async
       COSTCAP_EMAIL_FROM: "noreply@example.invalid",
       COSTCAP_BILLING: "enabled",
       PORT: "0",
+      COSTCAP_STORE_PATH: join(mkdtempSync(join(tmpdir(), "cc-bill-launch-")), "store.json"),
     },
   });
   assert.notEqual(flagged.status, 0);
-  assert.match(flagged.stderr, /Billing stays disabled/);
+  assert.match(flagged.stderr, /COSTCAP_STRIPE_SECRET_KEY required/);
   const source = readFileSync(new URL("../src/hosted/run.js", import.meta.url), "utf8");
-  assert.equal(source.includes("stripe"), false);
+  assert.ok(source.includes("await billingReady"));
   assert.equal(readFileSync(new URL("../package.json", import.meta.url), "utf8").includes("stripe"), false);
 });

@@ -62,3 +62,9 @@ test("canary passes on the real server and rejects a billing change", async (t) 
   assert.equal(applyAt > 0 && canaryAt > applyAt, true);
   assert.match(workflow, /if: success\(\)/);
 });
+
+test('canary accepts enabled billing only when explicitly expected',async()=>{
+ const fetchImpl=async url=>new Response(JSON.stringify(url.endsWith('/health')?{billing:'enabled',persistence:'single-process-file'}:url.endsWith('/ui/config')?{siteKey:'fixture'}:{}),{status:url.endsWith('/v1/fleet')?401:200});
+ assert.equal((await canary('https://app.example.invalid',fetchImpl)).ok,false);
+ assert.equal((await canary('https://app.example.invalid',fetchImpl,'','enabled')).ok,true);
+});

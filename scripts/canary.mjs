@@ -23,7 +23,7 @@ async function stable(fetchImpl, url, parse) {
   return last;
 }
 
-export async function canary(base, fetchImpl = globalThis.fetch, expectedSha = "") {
+export async function canary(base, fetchImpl = globalThis.fetch, expectedSha = "", expectedBilling = "disabled") {
   const root = String(base).replace(/\/$/, "");
   const healthRes = await stable(fetchImpl, `${root}/health`, true);
   const health = healthRes.body || {};
@@ -32,7 +32,7 @@ export async function canary(base, fetchImpl = globalThis.fetch, expectedSha = "
   const config = configRes.body;
   const fleetRes = await stable(fetchImpl, `${root}/v1/fleet`, true);
   const errors = [];
-  if (healthRes.status !== 200 || health.billing !== "disabled" || health.persistence !== "single-process-file") errors.push("health");
+  if (healthRes.status !== 200 || health.billing !== expectedBilling || health.persistence !== "single-process-file") errors.push("health");
   if (expectedSha && health.sha !== expectedSha) errors.push("sha");
   if (pageRes.status !== 200) errors.push("ui");
   const keys = config && typeof config === "object" ? Object.keys(config) : [];
@@ -47,7 +47,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     console.error("canary: base URL required");
     process.exit(2);
   }
-  const result = await canary(base, globalThis.fetch, process.env.COSTCAP_EXPECT_SHA || "");
+  const result = await canary(base, globalThis.fetch, process.env.COSTCAP_EXPECT_SHA || "", process.env.COSTCAP_EXPECT_BILLING || "disabled");
   if (!result.ok) {
     console.error(`canary: failed ${result.errors.join(", ")}`);
     process.exit(1);
