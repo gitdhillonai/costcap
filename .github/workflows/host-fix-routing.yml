@@ -1,0 +1,38 @@
+name: host-fix-routing
+# One-off: app.costcap.dev is claimed by two containers (old Coolify app 46 and the compose deploy); the Coolify one wins on rule length.
+# Stops (does not remove) the old Coolify container, verifies the public /health sha, and restarts it if verification fails.
+on:
+  workflow_dispatch:
+    inputs:
+      expect_sha:
+        description: 'Commit SHA the public /health must report'
+        required: true
+permissions:
+  contents: read
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Stop old container, verify, roll back on failure
+        env:
+          COSTCAP_DEPLOY_HOST: ${{ secrets.COSTCAP_DEPLOY_HOST }}
+          COSTCAP_DEPLOY_SSH_KEY: ${{ secrets.COSTCAP_DEPLOY_SSH_KEY }}
+          EXPECT_SHA: ${{ inputs.expect_sha }}
+        run: |
+          install -m 600 /dev/null /tmp/id; printf '%s\n' "$COSTCAP_DEPLOY_SSH_KEY" > /tmp/id
+          S="ssh -i /tmp/id -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=20 -o UserKnownHostsFile=$PWD/infra/ssh/costcap-deploy.known_hosts -o StrictHostKeyChecking=yes"
+          OLD=ulhel33ckh6ukvvn2wo9kcms-211006418705
+          $S "$COSTCAP_DEPLOY_HOST" "docker stop $OLD >/dev/null && echo stopped $OLD"
+          ok=0
+          for i in $(seq 1 15); do
+            sleep 4
+            h=$(curl -s -m 10 https://app.costcap.dev/health || true); echo "$h"
+            case "$h" in *"$EXPECT_SHA"*) ok=1; break;; esac
+          done
+          code=$(curl -s -o /dev/null -m 10 -w '%{http_code}' https://app.costcap.dev/proof/offline-policy.txt || true); echo "proof $code"
+          if [ "$ok" != 1 ] || [ "$code" != 200 ]; then
+            echo "verification failed; restarting old container"; $S "$COSTCAP_DEPLOY_HOST" "docker start $OLD"; rm -f /tmp/id; exit 1
+          fi
+          rm -f /tmp/id
