@@ -1,0 +1,47 @@
+name: deploy-billing
+# Writes the approved COSTCAP_STRIPE_* env secrets to the host .env (never printed), deploys with COSTCAP_BILLING=enabled,
+# canaries with billing expected enabled. On failure: removes COSTCAP_BILLING from the host .env (image already rolls back). No charges are made.
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  billing:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      COSTCAP_DEPLOY_HOST: ${{ secrets.COSTCAP_DEPLOY_HOST }}
+      COSTCAP_DEPLOY_SSH_KEY: ${{ secrets.COSTCAP_DEPLOY_SSH_KEY }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Write env on host (stdin, not printed)
+        env:
+          COSTCAP_STRIPE_SECRET_KEY: ${{ secrets.COSTCAP_STRIPE_SECRET_KEY }}
+          COSTCAP_STRIPE_WEBHOOK_SECRET: ${{ secrets.COSTCAP_STRIPE_WEBHOOK_SECRET }}
+          COSTCAP_STRIPE_ACCOUNT_ID: ${{ secrets.COSTCAP_STRIPE_ACCOUNT_ID }}
+          COSTCAP_STRIPE_PRICE_ID: ${{ secrets.COSTCAP_STRIPE_PRICE_ID }}
+        run: |
+          for k in COSTCAP_STRIPE_SECRET_KEY COSTCAP_STRIPE_WEBHOOK_SECRET COSTCAP_STRIPE_ACCOUNT_ID COSTCAP_STRIPE_PRICE_ID; do [ -n "${!k}" ] || { echo "missing $k"; exit 1; }; done
+          install -m 600 /dev/null /tmp/id; printf '%s\n' "$COSTCAP_DEPLOY_SSH_KEY" > /tmp/id
+          S="ssh -i /tmp/id -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=20 -o UserKnownHostsFile=$PWD/infra/ssh/costcap-deploy.known_hosts -o StrictHostKeyChecking=yes"
+          cp_ts=$(date +%s)
+          MERGE_B64=$(base64 -w0 scripts/host-env-merge.py)
+          printf 'COSTCAP_STRIPE_SECRET_KEY=%s\nCOSTCAP_STRIPE_WEBHOOK_SECRET=%s\nCOSTCAP_STRIPE_ACCOUNT_ID=%s\nCOSTCAP_STRIPE_PRICE_ID=%s\nCOSTCAP_BILLING=enabled\n' "$COSTCAP_STRIPE_SECRET_KEY" "$COSTCAP_STRIPE_WEBHOOK_SECRET" "$COSTCAP_STRIPE_ACCOUNT_ID" "$COSTCAP_STRIPE_PRICE_ID" | \
+            $S "$COSTCAP_DEPLOY_HOST" "cp /opt/costcap/.env /opt/costcap/.env.bak-$cp_ts && python3 -c \"\$(echo $MERGE_B64 | base64 -d)\" && chmod 600 /opt/costcap/.env"
+          rm -f /tmp/id
+      - name: Deploy with billing enabled
+        env:
+          COSTCAP_GIT_SHA: ${{ github.sha }}
+        run: node scripts/deploy-apply.mjs
+      - name: Canary (billing expected enabled)
+        env:
+          COSTCAP_ORIGIN: ${{ secrets.COSTCAP_ORIGIN }}
+          COSTCAP_EXPECT_SHA: ${{ github.sha }}
+          COSTCAP_EXPECT_BILLING: enabled
+        run: node scripts/canary.mjs "$COSTCAP_ORIGIN"
+      - name: Roll billing flag off on failure
+        if: failure()
+        run: |
+          install -m 600 /dev/null /tmp/id; printf '%s\n' "$COSTCAP_DEPLOY_SSH_KEY" > /tmp/id
+          ssh -i /tmp/id -o BatchMode=yes -o IdentitiesOnly=yes -o UserKnownHostsFile=$PWD/infra/ssh/costcap-deploy.known_hosts -o StrictHostKeyChecking=yes "$COSTCAP_DEPLOY_HOST" "sed -i '/^COSTCAP_BILLING=/d' /opt/costcap/.env && echo billing flag removed"
+          rm -f /tmp/id
