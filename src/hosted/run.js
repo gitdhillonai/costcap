@@ -36,7 +36,8 @@ const { server, evaluateFleetAlerts, billingReady } = createHostedServer({
   deliverAlert: (alert) => authorizedOrg && alert.orgId === authorizedOrg ? delivery(alert) : [{ status: "unconfigured" }],
   requestLog: (line) => process.stderr.write(`${line}\n`),
 });
-await billingReady;
+try { await billingReady; }
+catch { console.error("costcap: billing verification failed; billing disabled"); }
 let alertRunning = false;
 const interval = setInterval(async () => {
   if (alertRunning) return;

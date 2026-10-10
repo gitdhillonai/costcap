@@ -23,6 +23,7 @@ test("the default server and a billing flag do not create a charge route", async
   assert.equal(charge.status, 404);
   const flagged = spawnSync(process.execPath, ["src/hosted/run.js"], {
     encoding: "utf8",
+    timeout: 1000,
     env: {
       ...process.env,
       COSTCAP_ORIGIN: "https://app.example.invalid",
@@ -36,8 +37,9 @@ test("the default server and a billing flag do not create a charge route", async
       COSTCAP_STORE_PATH: join(mkdtempSync(join(tmpdir(), "cc-bill-launch-")), "store.json"),
     },
   });
-  assert.notEqual(flagged.status, 0);
-  assert.match(flagged.stderr, /COSTCAP_STRIPE_SECRET_KEY required/);
+  assert.equal(flagged.error?.code, "ETIMEDOUT");
+  assert.match(flagged.stderr, /billing verification failed; billing disabled/);
+  assert.match(flagged.stderr, /beta service ready/);
   const source = readFileSync(new URL("../src/hosted/run.js", import.meta.url), "utf8");
   assert.ok(source.includes("await billingReady"));
   assert.equal(readFileSync(new URL("../package.json", import.meta.url), "utf8").includes("stripe"), false);

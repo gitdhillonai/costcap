@@ -93,3 +93,17 @@ test('billing HTTP routes enforce verified owner and origin; signed webhook is s
 test('configured account id cannot authorize a different account even when readback matches',async()=>{const f=fixture({'/account':{id:'acct_other',charges_enabled:true}});await assert.rejects(createStripeBilling({...f.options,accountId:'acct_other'}),/account readback/)});
 
 test('approved account readback needs no business name field',async()=>{const f=fixture({'/account':{id:'acct_1TdlLm0Yt0O6HtVs',charges_enabled:true}});await createStripeBilling(f.options)});
+
+test('failed billing initialization keeps hosted app available with all charging routes disabled',async t=>{
+ const service=createHostedServer({storePath:join(mkdtempSync(join(tmpdir(),'cc-billing-safe-')),'store.json'),origin:'http://localhost',secureCookies:false,
+ verifyChallenge:async()=>true,sendCode:async()=>{},billingFactory:async()=>{throw new Error('provider forbidden')}});
+ await assert.rejects(service.billingReady,/provider forbidden/);
+ await new Promise(r=>service.server.listen(0,'127.0.0.1',r));
+ t.after(()=>{service.server.closeAllConnections();service.server.close()});
+ const base=`http://127.0.0.1:${service.server.address().port}`;
+ assert.equal((await fetch(base+'/health').then(r=>r.json())).billing,'disabled');
+ assert.equal((await fetch(base+'/')).status,200);
+ for(const path of ['/billing/checkout','/billing/portal','/billing/webhook']){
+  assert.equal((await fetch(base+path,{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:'{}'})).status,404);
+ }
+});
