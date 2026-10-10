@@ -19,11 +19,17 @@ jobs:
           S="ssh -i /tmp/id -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=20"
           [ -f infra/ssh/costcap-deploy.known_hosts ] && S="$S -o UserKnownHostsFile=$PWD/infra/ssh/costcap-deploy.known_hosts -o StrictHostKeyChecking=yes" || S="$S -o StrictHostKeyChecking=accept-new"
           $S "$COSTCAP_DEPLOY_HOST" '
-            echo "== ulhel labels"; docker inspect ulhel33ckh6ukvvn2wo9kcms-211006418705 --format "{{json .Config.Labels}}" | tr "," "\n" | grep -E "traefik|coolify.(name|fqdn|resourceName)|coolify.applicationId" | cut -c1-400
-            echo "== ulhel state"; docker inspect ulhel33ckh6ukvvn2wo9kcms-211006418705 --format "{{.Name}} {{.State.Status}} started={{.State.StartedAt}} restart={{.HostConfig.RestartPolicy.Name}}"
-            echo "== any container w/ costcap.dev in traefik rule"; for c in $(docker ps -q); do docker inspect $c --format "{{.Name}} {{range \$k,\$v := .Config.Labels}}{{\$v}} {{end}}" | grep -i "costcap.dev" | cut -c1-300; done
-            echo "== dynamic/default_redirect_503.yaml"; cat /data/coolify/proxy/dynamic/default_redirect_503.yaml | head -30
-            echo "== www-permanent-redirects (costcap lines)"; grep -n -i costcap /data/coolify/proxy/dynamic/www-permanent-redirects.yaml | head
-            echo "== traefik routers api"; curl -s localhost:8080/api/http/routers 2>/dev/null | head -c 100
+            echo "== containers mentioning 50search"
+            for c in $(docker ps -q); do
+              if docker inspect $c --format "{{.Name}} {{range \$k,\$v := .Config.Labels}}{{\$v}} {{end}} {{range .Config.Env}}{{.}} {{end}}" | grep -qi "50search"; then
+                n=$(docker inspect $c --format "{{.Name}} {{.Config.Image}} {{.State.Status}}")
+                echo "-- $n"
+                docker inspect $c --format "{{range \$k,\$v := .Config.Labels}}{{\$k}}={{\$v}}{{println}}{{end}}" | grep -E "traefik.*rule|coolify.(resourceName|applicationId|name)" | cut -c1-200
+                echo "env names (values hidden):"; docker inspect $c --format "{{range .Config.Env}}{{println .}}{{end}}" | cut -d= -f1 | grep -iE "SUPABASE|DATABASE|POSTGRES|NEXT_PUBLIC" | sort | tr "\n" " "; echo
+                echo "supabase host (non-secret):"; docker inspect $c --format "{{range .Config.Env}}{{println .}}{{end}}" | grep -E "^NEXT_PUBLIC_SUPABASE_URL=" | sed -E "s#^[^=]*=https?://([^/]+).*#\1#"
+                echo "db host (non-secret):"; docker inspect $c --format "{{range .Config.Env}}{{println .}}{{end}}" | grep -E "^(DATABASE_URL|SUPABASE_DB_URL|POSTGRES_URL)=" | sed -E "s#^([^=]*)=[a-z]+://[^@]*@([^/:?]+).*#\1 host=\2#"
+              fi
+            done
+            echo "== coolify apps dir"; ls /data/coolify/applications 2>/dev/null | head -3
           ' 2>&1 | sed -E 's/(KEY|SECRET|TOKEN|PASSWORD)=[^ ]+/\1=***/Ig'
           rm -f /tmp/id
