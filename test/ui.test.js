@@ -61,3 +61,16 @@ test('hosted root serves UI; fleet remains protected and assets do not expose se
   const code=await fetch(base+'/auth/request',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:JSON.stringify({email:'a@example.invalid',turnstileToken:'bad'})});assert.equal(code.status,403);
   assert.equal((await fetch(base+'/assets/app.js')).status,200);
 });
+
+test('GA4 tag G-P6NP48RRGC installed CSP-clean (issue #53)', () => {
+  const html = uiResponse('/');
+  // External loader from googletagmanager, same-origin config - no inline script.
+  assert.match(html.body, /googletagmanager\.com\/gtag\/js\?id=G-P6NP48RRGC/);
+  assert.match(html.body, /\/assets\/ga\.js/);
+  const ga = uiResponse('/assets/ga.js');
+  assert.ok(ga);
+  assert.match(ga.body, /gtag\('config', 'G-P6NP48RRGC'\)/);
+  assert.match(html.headers['content-security-policy'], /script-src 'self' [^;]*googletagmanager\.com/);
+  assert.match(html.headers['content-security-policy'], /connect-src [^;]*google-analytics\.com/);
+  assert.ok(!html.headers['content-security-policy'].includes('unsafe-inline'));
+});
