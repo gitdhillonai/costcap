@@ -1,11 +1,14 @@
 import { offlineProof } from './proof.js';
 // Same-origin UI for the free beta. No external analytics or billing flows.
 import { jsonLdScript, robotsTxt, sitemapXml, PUBLIC_ORIGIN } from './seo.js';
+// IndexNow ownership key: public by design, served at /<key>.txt per the protocol.
+const INDEXNOW_KEY = '8459b118d7f227de932db7f94357f430';
 export function uiResponse(path, siteKey = '', origin = PUBLIC_ORIGIN, billing = false) {
   const headers = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff',
     'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self'; connect-src 'self' https://challenges.cloudflare.com; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" };
   if (path === '/proof/offline-policy.txt') return { body: offlineProof, headers: { ...headers, 'content-type': 'text/plain; charset=utf-8' } };
   if (path === '/') return { body: page(origin, billing), headers: { ...headers, 'content-type': 'text/html; charset=utf-8' } };
+  if (path === `/${INDEXNOW_KEY}.txt`) return { body: INDEXNOW_KEY, headers: { ...headers, 'content-type': 'text/plain; charset=utf-8' } };
   if (path === '/robots.txt') return { body: robotsTxt(origin), headers: { ...headers, 'content-type': 'text/plain; charset=utf-8' } };
   if (path === '/sitemap.xml') return { body: sitemapXml(origin), headers: { ...headers, 'content-type': 'application/xml; charset=utf-8' } };
   if (path === '/assets/app.css') return { body: css, headers: { ...headers, 'content-type': 'text/css; charset=utf-8' } };

@@ -8,3 +8,4 @@
 
 - 2026-10-09: safe billing startup: a failed Stripe readback at boot now keeps the app up with billing disabled (canary still fails when billing is expected). Cause of the earlier crash-loop: restricted key lacked Account read (403).
 - 2026-10-09: PR copy v4: enabled landing says "Free beta. Optional $19/month plan." (source/test; deploy follows).
+- 2026-10-11: IndexNow key route /8459b118d7f227de932db7f94357f430.txt added to hosted UI (test in seo.test.js); deploy pending verification.

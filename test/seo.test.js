@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { uiResponse } from '../src/hosted/ui.js';
 import { PUBLIC_ROUTES, jsonLd, robotsTxt, sitemapXml, absoluteUrl } from '../src/hosted/seo.js';
 
 test('public allowlist is only the landing; discovery files omit private routes', () => {
@@ -21,4 +22,12 @@ test('public allowlist is only the landing; discovery files omit private routes'
   const graph = jsonLd('https://costcap.dev')['@graph'];
   assert.ok(graph.some((n) => n['@type'] === 'WebSite' && n.url === 'https://costcap.dev'));
   assert.ok(graph.some((n) => n['@type'] === 'SoftwareApplication' && n.name === 'CostCap'));
+});
+
+test('IndexNow key file is served as exactly the key, text/plain', () => {
+  const k = '8459b118d7f227de932db7f94357f430';
+  const r = uiResponse(`/${k}.txt`);
+  assert.equal(r.body, k);
+  assert.match(r.headers['content-type'], /^text\/plain/);
+  assert.equal(uiResponse('/other-key.txt'), null);
 });
