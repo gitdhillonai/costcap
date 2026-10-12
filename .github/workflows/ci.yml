@@ -4,7 +4,8 @@ permissions:
   contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.USE_HOSTED_RUNNER == 'true' && 'ubuntu-latest' || fromJSON(vars.SELF_HOSTED_RUNNER || '["self-hosted","persoon-build"]') }}
+    timeout-minutes: 30
     strategy:
       matrix:
         node: [20, 22]
@@ -21,7 +22,8 @@ jobs:
       - run: npm pack --dry-run
       - run: node scripts/pack-check.mjs
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.USE_HOSTED_RUNNER == 'true' && 'ubuntu-latest' || fromJSON(vars.SELF_HOSTED_RUNNER || '["self-hosted","persoon-build"]') }}
+    timeout-minutes: 30
     permissions:
       contents: read
       actions: write # upload the Playwright trace only after a failure
