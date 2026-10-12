@@ -11,6 +11,22 @@ const token = () => randomBytes(32).toString("base64url");
 const fail = (status, message) => { const err = new Error(message); err.status = status; throw err; };
 const audit = (s, orgId, actor, action, target, detail = {}) => s.audit.push(auditEntry({ orgId, actor, action, target, detail }));
 
+// Estimated receipt spend for the dashboard. Null cost is unknown, never zero.
+export function spendSummary(receipts, nowMs) {
+  const utc = new Date(nowMs).toISOString();
+  const fold = (prefix) => {
+    let usd = 0, unknown = 0;
+    for (const item of receipts) {
+      const r = item.receipt ?? item;
+      if (prefix && (typeof r.ts !== "string" || !r.ts.startsWith(prefix))) continue;
+      if (r.cost_usd === null || r.cost_usd === undefined) unknown += 1;
+      else usd += r.cost_usd;
+    }
+    return { usd, unknown };
+  };
+  return { day: fold(utc.slice(0, 10)), month: fold(utc.slice(0, 7)), all: fold("") };
+}
+
 export function createHostedServer({ storePath, verifyChallenge, sendCode, sendInvite, deliverAlert,
   now = () => Date.now(), secureCookies = true, origin, turnstileSiteKey = "", bodyLimit = 256_000,
   requestLog = () => {}, billingFactory } = {}) {
@@ -177,7 +193,7 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, sendI
       if (path === "/v1/fleet" && req.method === "GET") {
         return json(200, store.read((s) => {
           const u = sessionUser(s, req);
-          return { agents: Object.values(s.agents).filter((a) => a.orgId === u.orgId).map(({ hash, ...a }) => a),
+          return { agents: Object.values(s.agents).filter((a) => a.orgId === u.orgId).map(({ hash, ...a }) => ({ ...a, spend: spendSummary(Object.values(s.receipts).filter((r) => r.agentId === a.id), now()) })),
             receipts: Object.values(s.receipts).filter((r) => r.orgId === u.orgId),
             audit: s.audit.filter((e) => e.org_id === u.orgId), alerts: Object.values(s.alerts).filter((a) => a.orgId === u.orgId),
             role: u.role, invitations: ["owner", "admin"].includes(u.role) ? Object.values(s.invitations ?? {}).filter((item) => item.orgId === u.orgId && item.expires > now()).map(({ invitedBy, ...item }) => item) : [],
@@ -242,9 +258,8 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, sendI
       for (const a of Object.values(s.agents)) {
         if (a.revoked) continue;
         const receipts = Object.values(s.receipts).filter((r) => r.agentId === a.id).map((r) => r.receipt);
-        const utc = new Date(now()).toISOString();
-        const sum = (prefix) => receipts.filter((r) => r.ts.startsWith(prefix)).reduce((n, r) => n + (r.cost_usd ?? 0), 0);
-        const alerts = evaluateAlerts({ agentId: a.id, caps: a.policy.caps, spend: { day: sum(utc.slice(0, 10)), month: sum(utc.slice(0, 7)) }, blockedReasons: receipts.filter((r) => Date.parse(r.ts) > now() - 3600_000).map((r) => r.reason), lastSeenMs: a.lastSeen, nowMs: now() });
+        const spent = spendSummary(receipts, now());
+        const alerts = evaluateAlerts({ agentId: a.id, caps: a.policy.caps, spend: { day: spent.day.usd, month: spent.month.usd }, blockedReasons: receipts.filter((r) => Date.parse(r.ts) > now() - 3600_000).map((r) => r.reason), lastSeenMs: a.lastSeen, nowMs: now() });
         // A configured global alert channel is not an org recipient grant.
         // The caller must explicitly route each org's alerts.
         const keys = new Set(alerts.map((x) => x.key));

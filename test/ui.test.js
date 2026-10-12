@@ -41,6 +41,7 @@ test('same-origin UI assets use CSP and no inline scripts or data HTML injection
   assert.ok(!js.includes('localStorage'));
   assert.ok(!js.includes('sessionStorage'));
   assert.match(js, /textContent/);
+  assert.match(js, /Estimated spend \(UTC\)/);
   assert.equal(uiResponse('/anything'), null);
 });
 test('UI config returns public site key only, JSON-encoded', () => {

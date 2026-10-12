@@ -165,3 +165,30 @@ test("a failed verification-code send returns 503 and rolls back the challenge",
   assert.equal(ok.status, 200);
   assert.ok(ok.body.challengeId);
 });
+
+test("fleet spend is per agent, UTC day and month, and unknown cost is not zero", async (t) => {
+  const f = await fixture(t);
+  const owner = await f.login("spend@example.invalid");
+  const other = await f.login("other-spend@example.invalid");
+  const token = (await f.request("/v1/enrollment-tokens", { caps: { day: 5, month: 20 } }, owner.cookie)).body.token;
+  const agent = (await f.request("/v1/enroll", { name: "meter" }, null, token)).body;
+  const now = new Date();
+  const today = now.toISOString();
+  const lastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15, 12)).toISOString();
+  assert.equal((await f.request("/v1/receipts", { receipts: [
+    { id: "today", ts: today, cost_usd: 1.25, model: "test" },
+    { id: "old", ts: lastMonth, cost_usd: 4, model: "test" },
+    { id: "unk", ts: today, cost_usd: null, model: "test" },
+  ] }, null, agent.token)).status, 200);
+  const fleet = await f.request("/v1/fleet", undefined, owner.cookie);
+  const spend = fleet.body.agents.find((a) => a.id === agent.agentId).spend;
+  assert.equal(spend.day.usd, 1.25);
+  assert.equal(spend.day.unknown, 1);
+  assert.equal(spend.month.usd, 1.25);
+  assert.equal(spend.month.unknown, 1);
+  assert.equal(spend.all.usd, 5.25);
+  assert.equal(spend.all.unknown, 1);
+  const hidden = await f.request("/v1/fleet", undefined, other.cookie);
+  assert.equal(hidden.body.agents.length, 0);
+  assert.equal(hidden.body.receipts.length, 0);
+});
