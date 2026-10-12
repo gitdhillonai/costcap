@@ -1,10 +1,14 @@
 name: verify
 on: [push, pull_request]
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.USE_HOSTED_RUNNER == 'true' && 'ubuntu-latest' || fromJSON('["self-hosted","mac-docker"]') }}
+    timeout-minutes: 30
     strategy:
       matrix:
         node: [20, 22]
@@ -21,7 +25,8 @@ jobs:
       - run: npm pack --dry-run
       - run: node scripts/pack-check.mjs
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.USE_HOSTED_RUNNER == 'true' && 'ubuntu-latest' || fromJSON('["self-hosted","mac-docker"]') }}
+    timeout-minutes: 30
     permissions:
       contents: read
       actions: write # upload the Playwright trace only after a failure
