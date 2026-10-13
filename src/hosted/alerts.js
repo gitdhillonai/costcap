@@ -17,7 +17,10 @@ export function evaluateAlerts(state, { approachFraction = 0.8, silentAfterMs = 
     if (spent >= cap) out.push({ kind: "cap_hit", scope, key: `cap_hit:${state.agentId}:${scope}`, cap, spent });
     else if (spent >= cap * approachFraction) out.push({ kind: "cap_approaching", scope, key: `cap_approaching:${state.agentId}:${scope}`, cap, spent });
   }
-  if ((state.blockedReasons ?? []).some((r) => r === "spiral_detected" || r === "cost_velocity")) {
+  // Step budget is the third shipped loop guardrail, with spiral and velocity.
+  // Accounting gaps and ordinary cap or kill blocks are not loops.
+  const loopReasons = new Set(["spiral_detected", "cost_velocity", "step_budget"]);
+  if ((state.blockedReasons ?? []).some((r) => loopReasons.has(r))) {
     out.push({ kind: "loop_detected", key: `loop_detected:${state.agentId}` });
   }
   // A local run cap is not a day or month sum. The proxy records that block

@@ -59,11 +59,13 @@ test("a run-scope budget block pages as cap_hit and does not duplicate a day hit
 });
 
 test("a velocity-breaker trip pages the operator, an ordinary cap block does not", () => {
-  // Both guardrail trip reasons (#7 spiral, #8 velocity) must raise loop_detected;
+  // Spiral, velocity, and step budget must raise loop_detected.
   // a plain budget block must not, or every capped run would page as a loop.
   const base = { agentId: "a1", caps: { day: 10 }, spend: {}, nowMs: 100_000_000, lastSeenMs: 99_000_000 };
   assert.deepEqual(evaluateAlerts({ ...base, blockedReasons: ["cost_velocity"] }).map((a) => a.kind), ["loop_detected"]);
-  assert.deepEqual(evaluateAlerts({ ...base, blockedReasons: ["budget_exceeded", "killed"] }), []);
+  assert.deepEqual(evaluateAlerts({ ...base, blockedReasons: ["step_budget"] }).map((a) => a.kind), ["loop_detected"]);
+  assert.equal(evaluateAlerts({ ...base, blockedReasons: ["step_budget"] })[0].key, "loop_detected:a1");
+  assert.deepEqual(evaluateAlerts({ ...base, blockedReasons: ["budget_exceeded", "killed", "accounting_unavailable", "usage_unavailable", "upstream_outcome_unknown"] }), []);
 });
 
 test("dedupe fires once, re-arms after clearing", () => {

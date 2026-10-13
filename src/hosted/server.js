@@ -11,6 +11,15 @@ const token = () => randomBytes(32).toString("base64url");
 const fail = (status, message) => { const err = new Error(message); err.status = status; throw err; };
 const audit = (s, orgId, actor, action, target, detail = {}) => s.audit.push(auditEntry({ orgId, actor, action, target, detail }));
 
+// A missing channel is not a failed send. Retry only when a configured
+// channel failed. Accepted, or nothing configured, does not send again
+// until the alert clears and re-arms.
+export function alertDeliveryState(result) {
+  const configured = (Array.isArray(result) ? result : []).filter((row) => row?.status !== "unconfigured");
+  if (!configured.length) return "unconfigured";
+  return configured.every((row) => row.status === "accepted") ? "accepted" : "failed";
+}
+
 // Estimated receipt spend for the dashboard. Null cost is unknown, never zero.
 export function spendSummary(receipts, nowMs) {
   const utc = new Date(nowMs).toISOString();
@@ -274,7 +283,7 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, sendI
           if (!prior?.active) {
             s.alerts[alert.key] = { ...alert, orgId: a.orgId, agentId: a.id, active: true, delivery: "pending" };
             out.push(s.alerts[alert.key]);
-          } else if (prior.delivery !== "accepted") out.push(prior);
+          } else if (prior.delivery === "failed") out.push(prior);
         }
       }
       return out;
@@ -284,7 +293,7 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, sendI
       try { result = deliverAlert ? await deliverAlert(a) : [{ status: "unconfigured" }]; }
       catch { result = [{ status: "failed" }]; }
       store.transaction((s) => {
-        s.alerts[a.key].delivery = result.every((r) => r.status === "accepted") ? "accepted" : "failed";
+        s.alerts[a.key].delivery = alertDeliveryState(result);
         audit(s, a.orgId, "alert-worker", "alert.delivery", a.agentId, { kind: a.kind, result });
       });
     }

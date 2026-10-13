@@ -6,12 +6,12 @@ import { join } from "node:path";
 import { createHostedServer } from "../src/hosted/server.js";
 
 async function fixture(t, { now } = {}) {
-  let code, delivery = [], failDelivery = false, invites = [], failInvite = false, failCode = false;
+  let code, delivery = [], failDelivery = false, deliveryResult = null, invites = [], failInvite = false, failCode = false;
   const storePath = join(mkdtempSync(join(tmpdir(), "cc-service-")), "store.json");
   let service;
   const origin = "http://localhost";
   const start = async () => {
-    service = createHostedServer({ storePath, origin, secureCookies: false, now, verifyChallenge: async (value) => value === "test-pass", sendCode: async (data) => { if (failCode) throw new Error("mail down"); code = data.code; }, sendInvite: async (data) => { if (failInvite) throw new Error("mail down"); invites.push(data); }, deliverAlert: async (a) => { delivery.push(a); return [{ status: failDelivery ? "failed" : "accepted" }]; } });
+    service = createHostedServer({ storePath, origin, secureCookies: false, now, verifyChallenge: async (value) => value === "test-pass", sendCode: async (data) => { if (failCode) throw new Error("mail down"); code = data.code; }, sendInvite: async (data) => { if (failInvite) throw new Error("mail down"); invites.push(data); }, deliverAlert: async (a) => { delivery.push(a); return deliveryResult ?? [{ status: failDelivery ? "failed" : "accepted" }]; } });
     await new Promise((r) => service.server.listen(0, "127.0.0.1", r));
   };
   await start();
@@ -27,7 +27,7 @@ async function fixture(t, { now } = {}) {
     assert.equal(r.status, 200);
     return r;
   };
-  return { request, login, service: () => service, delivery, invites: () => invites, setFail: (v) => { failDelivery = v; }, setInviteFail: (v) => { failInvite = v; }, setCodeFail: (v) => { failCode = v; }, storePath, restart: async () => { service.server.closeAllConnections(); await new Promise((r) => service.server.close(r)); await start(); } };
+  return { request, login, service: () => service, delivery, invites: () => invites, setFail: (v) => { failDelivery = v; }, setDeliveryResult: (v) => { deliveryResult = v; }, setInviteFail: (v) => { failInvite = v; }, setCodeFail: (v) => { failCode = v; }, storePath, restart: async () => { service.server.closeAllConnections(); await new Promise((r) => service.server.close(r)); await start(); } };
 }
 
 test("verified org-first login, tenant isolation, enrollment, receipt sync and restart", async (t) => {
@@ -183,6 +183,79 @@ test("a synced run-scope budget block is delivered once", async (t) => {
   assert.equal(f.delivery[0].scope, "run");
   await f.service().evaluateFleetAlerts();
   assert.equal(f.delivery.length, 1);
+});
+
+test("a step-budget receipt pages once, ages out, and re-arms", async (t) => {
+  let clock = Date.parse("2026-10-12T12:00:00.000Z");
+  const f = await fixture(t, { now: () => clock });
+  const owner = await f.login("steps@example.invalid");
+  const token = (await f.request("/v1/enrollment-tokens", { caps: { day: 5 } }, owner.cookie)).body.token;
+  const agent = (await f.request("/v1/enroll", { name: "steps" }, null, token)).body;
+  const stamp = () => new Date(clock).toISOString();
+  assert.equal((await f.request("/v1/receipts", { receipts: [
+    { id: "steps-1", ts: stamp(), cost_usd: 0, blocked: true, reason: "step_budget", model: "test" },
+  ] }, null, agent.token)).status, 200);
+  await f.service().evaluateFleetAlerts();
+  assert.equal(f.delivery.length, 1);
+  assert.equal(f.delivery[0].kind, "loop_detected");
+  assert.equal(f.delivery[0].key, `loop_detected:${agent.agentId}`);
+  await f.service().evaluateFleetAlerts();
+  assert.equal(f.delivery.length, 1);
+  clock += 3600_000 + 1;
+  await f.service().evaluateFleetAlerts();
+  assert.equal(f.delivery.length, 1);
+  const fleet = await f.request("/v1/fleet", undefined, owner.cookie);
+  assert.equal(fleet.body.alerts.find((a) => a.kind === "loop_detected").active, false);
+  assert.equal((await f.request("/v1/receipts", { receipts: [
+    { id: "steps-2", ts: stamp(), cost_usd: 0, blocked: true, reason: "step_budget", model: "test" },
+  ] }, null, agent.token)).status, 200);
+  await f.service().evaluateFleetAlerts();
+  assert.equal(f.delivery.length, 2);
+  assert.equal(f.delivery[1].kind, "loop_detected");
+});
+
+test("an unconfigured channel does not retry an accepted or empty delivery", async (t) => {
+  const f = await fixture(t);
+  const owner = await f.login("channels@example.invalid");
+  const token = (await f.request("/v1/enrollment-tokens", { caps: { day: 1 } }, owner.cookie)).body.token;
+  const agent = (await f.request("/v1/enroll", { name: "channels" }, null, token)).body;
+  const ts = new Date().toISOString();
+  assert.equal((await f.request("/v1/receipts", { receipts: [
+    { id: "near", ts, cost_usd: 0.9, model: "test" },
+  ] }, null, agent.token)).status, 200);
+  f.setDeliveryResult([{ channel: "email", status: "unconfigured" }, { channel: "slack", status: "accepted" }]);
+  await f.service().evaluateFleetAlerts();
+  assert.equal(f.delivery.length, 1);
+  await f.service().evaluateFleetAlerts();
+  assert.equal(f.delivery.length, 1);
+  let fleet = await f.request("/v1/fleet", undefined, owner.cookie);
+  assert.equal(fleet.body.alerts.find((a) => a.kind === "cap_approaching").delivery, "accepted");
+
+  f.setDeliveryResult([{ channel: "email", status: "unconfigured" }, { channel: "slack", status: "unconfigured" }]);
+  const tokenB = (await f.request("/v1/enrollment-tokens", { caps: { day: 1 } }, owner.cookie)).body.token;
+  const agentB = (await f.request("/v1/enroll", { name: "quiet-channel" }, null, tokenB)).body;
+  assert.equal((await f.request("/v1/receipts", { receipts: [
+    { id: "near-b", ts, cost_usd: 0.9, model: "test" },
+  ] }, null, agentB.token)).status, 200);
+  await f.service().evaluateFleetAlerts();
+  assert.equal(f.delivery.length, 2);
+  await f.service().evaluateFleetAlerts();
+  assert.equal(f.delivery.length, 2);
+  fleet = await f.request("/v1/fleet", undefined, owner.cookie);
+  assert.equal(fleet.body.alerts.find((a) => a.agentId === agentB.agentId).delivery, "unconfigured");
+
+  f.setDeliveryResult([{ channel: "email", status: "accepted" }, { channel: "slack", status: "failed" }]);
+  const tokenC = (await f.request("/v1/enrollment-tokens", { caps: { day: 1 } }, owner.cookie)).body.token;
+  const agentC = (await f.request("/v1/enroll", { name: "retry-channel" }, null, tokenC)).body;
+  assert.equal((await f.request("/v1/receipts", { receipts: [
+    { id: "near-c", ts, cost_usd: 0.9, model: "test" },
+  ] }, null, agentC.token)).status, 200);
+  await f.service().evaluateFleetAlerts();
+  assert.equal(f.delivery.length, 3);
+  await f.service().evaluateFleetAlerts();
+  assert.equal(f.delivery.length, 4);
+  fleet = await f.request("/v1/fleet", undefined, owner.cookie);
+  assert.equal(fleet.body.alerts.find((a) => a.agentId === agentC.agentId).delivery, "failed");
 });
 
 test("agent silence arms, clears after a policy poll, and re-arms", async (t) => {
