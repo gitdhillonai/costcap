@@ -36,8 +36,8 @@ GitHub issues are the source of truth. This file is the index as of 2026-10-07.
 | #52 live-proof shell | P2 | closed on verify run 37640949670 | no |
 | #64 run-scope cap alert | P0 | closed on verify run 38337453183 | no |
 | #65 agent silence on the worker | P1 | closed on verify run 38337453183 | no |
-| #66 step budget loop alert | P0 | open, local worker | yes |
-| #67 unconfigured alert channel | P1 | open, local worker | yes |
+| #66 step budget loop alert | P0 | closed on verify run 38341631831 | no |
+| #67 unconfigured alert channel | P1 | closed on verify run 38341631831 | no |
 
 Closed: #2, #3, #4, #7, #8, #9, #17, #18, #19, #20, #37, #38, #39, #40, #41, #46, #47, #48, #49, #50, #51, #52.
 
