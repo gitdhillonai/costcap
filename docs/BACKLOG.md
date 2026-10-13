@@ -47,6 +47,12 @@ Closed: #2, #3, #4, #7, #8, #9, #17, #18, #19, #20, #37, #38, #39, #40, #41, #46
 
 ## Gap-analysis fixes (untracked by a GitHub issue)
 
+- 2026-10-13: workspace receipt CSV. A signed-in member can download
+  `GET /v1/receipts.csv` for their organization only. Cells that look like
+  spreadsheet formulas are prefixed. An agent bearer token is not a session.
+  The file is proxy-reported spend, not a provider bill. Covered by
+  `test/receipts-csv.test.js` and `test/hosted-server.test.js`.
+
 - 2026-10-13: loop pages name the guardrail. `loop_detected` now carries
   `reason` in a fixed order (spiral, cost velocity, step budget) so a window
   with more than one trip still sends one page and says which guardrail won.

@@ -8,6 +8,7 @@ import { hashToken, validatePolicy } from "./policy.js";
 import { evaluateAlerts, auditEntry } from "./alerts.js";
 import { VERSION } from "../version.js";
 import { stripeHealth } from "./billing.js";
+import { receiptsCsv } from "./receipts-csv.js";
 const token = () => randomBytes(32).toString("base64url");
 const fail = (status, message) => { const err = new Error(message); err.status = status; throw err; };
 const audit = (s, orgId, actor, action, target, detail = {}) => s.audit.push(auditEntry({ orgId, actor, action, target, detail }));
@@ -209,6 +210,29 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, sendI
           return { acceptedIds };
         });
         return json(200, result);
+      }
+      if (path === "/v1/receipts.csv" && req.method === "GET") {
+        const csv = store.read((s) => {
+          const u = sessionUser(s, req);
+          const rows = Object.values(s.receipts).filter((r) => r.orgId === u.orgId).map((item) => ({
+            ts: item.receipt?.ts ?? "",
+            agent_id: item.agentId,
+            receipt_id: item.receipt?.id ?? "",
+            model: item.receipt?.model ?? "",
+            cost_usd: item.receipt?.cost_usd == null ? "" : item.receipt.cost_usd,
+            reason: item.receipt?.reason ?? "",
+            scope: item.receipt?.scope ?? "",
+          }));
+          return receiptsCsv(rows);
+        });
+        const headers = {
+          "content-type": "text/csv; charset=utf-8",
+          "cache-control": "no-store",
+          "x-content-type-options": "nosniff",
+          "content-disposition": 'attachment; filename="costcap-receipts.csv"',
+        };
+        if (csv.truncated) headers["x-costcap-truncated"] = "true";
+        return res.writeHead(200, headers).end(csv.body);
       }
       if (path === "/v1/fleet" && req.method === "GET") {
         return json(200, store.read((s) => {

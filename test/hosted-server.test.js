@@ -406,3 +406,29 @@ test("fleet spend is per agent, UTC day and month, and unknown cost is not zero"
   assert.equal(hidden.body.agents.length, 0);
   assert.equal(hidden.body.receipts.length, 0);
 });
+
+test("receipt csv is the signed-in org only and ignores an agent bearer", async (t) => {
+  const f = await fixture(t);
+  const owner = await f.login("csv@example.invalid");
+  const other = await f.login("csv-other@example.invalid");
+  const token = (await f.request("/v1/enrollment-tokens", { caps: { day: 5 } }, owner.cookie)).body.token;
+  const agent = (await f.request("/v1/enroll", { name: "meter" }, null, token)).body;
+  assert.equal((await f.request("/v1/receipts", { receipts: [
+    { id: "safe", ts: "2026-10-13T01:00:00.000Z", cost_usd: 0.5, model: "plain" },
+    { id: "formula", ts: "2026-10-13T02:00:00.000Z", cost_usd: null, model: "=1+1", reason: "budget_exceeded", scope: "day" },
+  ] }, null, agent.token)).status, 200);
+  const port = f.service().server.address().port;
+  const pull = async (cookie, auth) => {
+    const r = await fetch(`http://127.0.0.1:${port}/v1/receipts.csv`, { headers: { ...(cookie ? { cookie } : {}), ...(auth ? { authorization: `Bearer ${auth}` } : {}) } });
+    return { status: r.status, type: r.headers.get("content-type"), body: await r.text() };
+  };
+  assert.equal((await pull()).status, 401);
+  assert.equal((await pull(null, agent.token)).status, 401);
+  const mine = await pull(owner.cookie);
+  assert.equal(mine.status, 200);
+  assert.match(mine.type, /text\/csv/);
+  assert.match(mine.body, /plain,0\.5/);
+  assert.match(mine.body, /'=1\+1,,budget_exceeded,day/);
+  const theirs = await pull(other.cookie);
+  assert.equal(theirs.body.trim(), "ts,agent_id,receipt_id,model,cost_usd,reason,scope");
+});
