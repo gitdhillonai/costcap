@@ -2,7 +2,7 @@
 
 ## Basis
 
-Sources inspected on main September 30, 2026: README.md, root package.json when present, open issue bodies and existing docs/ARCHITECTURE.md when present. Also docs/product-spec.md or docs/requirements/sprs-sprint-v1.md.
+Sources inspected on main October 12, 2026: README.md, package.json, src/cli.js, src/hosted/, env.example, docs/hosted-deployment.md, and open GitHub issues. The running CLI and hosted beta are JavaScript. A TypeScript rewrite is not in this tree.
 
 ## Who it serves
 

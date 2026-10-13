@@ -50,7 +50,7 @@ test("wrapper cannot loosen a cached fleet policy", async () => {
   });
   const loose = await run(["--cap", "50"]);
   assert.equal(loose.code, 0, loose.err);
-  assert.equal(loose.out.trim(), "200\n429");
+  assert.equal(loose.out.replace(/\x1b\[[0-9;]*m/g, "").trim(), "200\n429");
   assert.equal(hits, 1);
   const cached = JSON.parse(readFileSync(enrollment, "utf8"));
   assert.equal(cached.policy.caps.run, 0.10);
@@ -59,7 +59,7 @@ test("wrapper cannot loosen a cached fleet policy", async () => {
   hits = 0;
   const tightened = await run(["--cap", "0.05"]);
   assert.equal(tightened.code, 0, tightened.err);
-  assert.equal(tightened.out.trim(), "200\n429");
+  assert.equal(tightened.out.replace(/\x1b\[[0-9;]*m/g, "").trim(), "200\n429");
   assert.equal(hits, 1);
   const updated = JSON.parse(readFileSync(enrollment, "utf8"));
   assert.equal(updated.policy.version, 2);

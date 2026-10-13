@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CostCap — pitch</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; font: 18px/1.45 Georgia, serif; }
+  section { min-height: 100vh; box-sizing: border-box; padding: 8vh 10vw; border-bottom: 1px solid #8884; }
+  h1 { font-size: 2.4rem; line-height: 1.15; margin: 0 0 0.6rem; }
+  h2 { font-size: 1.6rem; margin: 0 0 0.8rem; }
+  p, li { max-width: 40rem; }
+  .kicker { letter-spacing: 0.04em; text-transform: uppercase; font: 0.75rem/1.2 ui-sans-serif, system-ui, sans-serif; }
+</style>
+</head>
+<body>
+<section>
+  <p class="kicker">CostCap · development beta</p>
+  <h1>Stop the next agent call when the budget is already spent.</h1>
+  <p>A local proxy meters provider-reported usage, writes a receipt, and refuses further calls at the cap. Guardrails, not a bill guarantee.</p>
+</section>
+<section>
+  <h2>Problem</h2>
+  <p>An agent retry loop can spend a day's budget before anyone looks at the provider invoice. Missing usage is easy to treat as free. A kill switch that only lives in one terminal does not cover the next process.</p>
+</section>
+<section>
+  <h2>What exists</h2>
+  <ul>
+    <li>CLI wrap, day and month caps, step budget, retry-spiral detector, velocity breaker, and a local kill file.</li>
+    <li>Receipts with model, usage, and a versioned price estimate. Unknown cost stays null. It is not stored as zero.</li>
+    <li>A hosted fleet UI with org sign-in, enrollment, and alerts. Billing stays off until a Stripe readback exists.</li>
+    <li><code>costcap check</code> as a composite GitHub Action. No Marketplace listing and no npm publish yet.</li>
+  </ul>
+</section>
+<section>
+  <h2>Buyer and offer</h2>
+  <p>Proposed buyer: someone running proxy-routed agents who wants a hard local stop and a receipt they can reconcile. The MIT CLI is free. The hosted dashboard is a proposed $19 per month. That figure is not collected revenue.</p>
+</section>
+<section>
+  <h2>Limits</h2>
+  <ul>
+    <li>Only traffic that honors the wrapper's base URL is metered. Hardcoded endpoints bypass it.</li>
+    <li>A single call can finish above the remaining budget. This is not a prepaid hold.</li>
+    <li>Prices are estimates. They are not the provider invoice.</li>
+    <li>Live login proof, DNS for costcap.dev, Postgres in production, and npm publish are blocked on credentials.</li>
+  </ul>
+</section>
+</body>
+</html>

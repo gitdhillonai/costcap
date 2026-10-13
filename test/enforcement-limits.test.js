@@ -203,7 +203,7 @@ test("wrap enforces day-cap and month-cap from the CLI", async () => {
     const status = await new Promise((resolve) => child.on("exit", resolve));
     const ledger = readFileSync(receipts, "utf8").trim().split("\n").map(JSON.parse);
     assert.equal(status, 0, name);
-    assert.equal(out.trim(), "429", name);
+    assert.equal(out.replace(/\x1b\[[0-9;]*m/g, "").trim(), "429", name);
     assert.equal(hits, before, name);
     return ledger.at(-1);
   }

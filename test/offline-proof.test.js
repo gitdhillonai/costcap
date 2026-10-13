@@ -23,7 +23,7 @@ test('offline frozen cache refuses upstream calls across wrapper restarts',async
    const child=spawn(process.execPath,['src/cli.js','wrap','--enrollment',cache,'--receipts',receipts,'--kill-file',join(dir,'KILL'),'--',process.execPath,'--input-type=module','-e',script],{env:{...process.env,COSTCAP_TEST_OPENAI_UPSTREAM:`http://127.0.0.1:${port}`}});
    let out='',err='';child.stdout.on('data',d=>out+=d);child.stderr.on('data',d=>err+=d);child.on('error',reject);child.on('exit',code=>resolve({code,out,err}));
   });
-  assert.equal(result.out.trim(),'429',result.err);
+  assert.equal(result.out.replace(/\x1b\[[0-9;]*m/g, "").trim(),'429',result.err);
   assert.equal(hits,0);
   const rows=readFileSync(receipts,'utf8').trim().split('\n').map(JSON.parse);
   assert.equal(rows[0].reason,'killed');assert.equal(rows[0].blocked,true);

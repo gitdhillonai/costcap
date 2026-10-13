@@ -65,7 +65,7 @@ test("wrap points the child at the proxy and the cap hard-stops the second call"
     c.on("exit", (code) => resolve({ code, out }));
   });
   assert.equal(res.code, 0);
-  assert.equal(res.out.trim(), "200 429");
+  assert.equal(res.out.replace(/\x1b\[[0-9;]*m/g, "").trim(), "200 429");
 });
 
 test("parseWrapArgs reads --max-steps and --velocity-multiple and validates them", () => {
@@ -96,5 +96,5 @@ test("wrap --max-steps 2 lets two calls through and breaks the third with breake
     c.on("exit", (code) => resolve({ code, out }));
   });
   assert.equal(res.code, 0);
-  assert.equal(res.out.trim(), "200 200 429 breaker_open");
+  assert.equal(res.out.replace(/\x1b\[[0-9;]*m/g, "").trim(), "200 200 429 breaker_open");
 });

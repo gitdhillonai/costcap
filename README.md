@@ -98,7 +98,14 @@ Requires: Node 20+, and access to `gitdhillonai/dotenv` for `.env.local`.
 
 ## Environment
 
-See `.env.example`. Pull real values with `bash scripts/pull-secrets.sh`.
+See `env.example`. Pull real values with `bash scripts/pull-secrets.sh`.
+
+## Docs
+
+- [TECHSTACK.md](TECHSTACK.md) — runtime, store, and deploy contract
+- [ACCOUNTS.md](ACCOUNTS.md) — service names only, no secrets
+- [docs/VISION.md](docs/VISION.md)
+- [docs/deck/index.html](docs/deck/index.html) — short pitch
 
 ## Deploy / Rollback
 
