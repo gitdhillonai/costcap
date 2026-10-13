@@ -20,6 +20,15 @@ export function evaluateAlerts(state, { approachFraction = 0.8, silentAfterMs = 
   if ((state.blockedReasons ?? []).some((r) => r === "spiral_detected" || r === "cost_velocity")) {
     out.push({ kind: "loop_detected", key: `loop_detected:${state.agentId}` });
   }
+  // A local run cap is not a day or month sum. The proxy records that block
+  // as budget_exceeded plus a scope. Page that scope once, without turning
+  // every budget block into a loop alert.
+  for (const scope of ["run", "day", "month"]) {
+    if (out.some((alert) => alert.kind === "cap_hit" && alert.scope === scope)) continue;
+    if ((state.blockedReasons ?? []).includes(`budget_exceeded:${scope}`)) {
+      out.push({ kind: "cap_hit", scope, key: `cap_hit:${state.agentId}:${scope}`, cap: state.caps?.[scope] ?? null, spent: state.spend?.[scope] ?? null });
+    }
+  }
   if (state.lastSeenMs != null && state.nowMs - state.lastSeenMs > silentAfterMs) {
     out.push({ kind: "agent_silent", key: `agent_silent:${state.agentId}`, silentMs: state.nowMs - state.lastSeenMs });
   }

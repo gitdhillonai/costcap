@@ -47,6 +47,17 @@ test("alerts: approaching, hit, loop, silent", () => {
   assert.equal(evaluateAlerts({ ...base, spend: {}, lastSeenMs: 0 })[0].kind, "agent_silent");
 });
 
+test("a run-scope budget block pages as cap_hit and does not duplicate a day hit", () => {
+  const base = { agentId: "a1", caps: { day: 10, run: 1 }, spend: { day: 1 }, nowMs: 100_000_000, lastSeenMs: 99_000_000 };
+  const runHit = evaluateAlerts({ ...base, blockedReasons: ["budget_exceeded:run"] });
+  assert.deepEqual(runHit.map((a) => a.kind), ["cap_hit"]);
+  assert.equal(runHit[0].scope, "run");
+  assert.equal(runHit[0].key, "cap_hit:a1:run");
+  const dayAlready = evaluateAlerts({ ...base, spend: { day: 10 }, blockedReasons: ["budget_exceeded:day"] });
+  assert.equal(dayAlready.filter((a) => a.kind === "cap_hit" && a.scope === "day").length, 1);
+  assert.deepEqual(evaluateAlerts({ ...base, blockedReasons: ["budget_exceeded", "killed"] }), []);
+});
+
 test("a velocity-breaker trip pages the operator, an ordinary cap block does not", () => {
   // Both guardrail trip reasons (#7 spiral, #8 velocity) must raise loop_detected;
   // a plain budget block must not, or every capped run would page as a loop.

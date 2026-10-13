@@ -259,7 +259,12 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, sendI
         if (a.revoked) continue;
         const receipts = Object.values(s.receipts).filter((r) => r.agentId === a.id).map((r) => r.receipt);
         const spent = spendSummary(receipts, now());
-        const alerts = evaluateAlerts({ agentId: a.id, caps: a.policy.caps, spend: { day: spent.day.usd, month: spent.month.usd }, blockedReasons: receipts.filter((r) => Date.parse(r.ts) > now() - 3600_000).map((r) => r.reason), lastSeenMs: a.lastSeen, nowMs: now() });
+        const recent = receipts.filter((r) => Date.parse(r.ts) > now() - 3600_000);
+        const blockedReasons = recent.flatMap((r) => {
+          if (r.reason === "budget_exceeded" && ["run", "day", "month"].includes(r.scope)) return [`budget_exceeded:${r.scope}`];
+          return r.reason ? [r.reason] : [];
+        });
+        const alerts = evaluateAlerts({ agentId: a.id, caps: a.policy.caps, spend: { day: spent.day.usd, month: spent.month.usd }, blockedReasons, lastSeenMs: a.lastSeen, nowMs: now() });
         // A configured global alert channel is not an org recipient grant.
         // The caller must explicitly route each org's alerts.
         const keys = new Set(alerts.map((x) => x.key));
