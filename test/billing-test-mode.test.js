@@ -21,7 +21,7 @@ function harness() {
   const store = openStore(join(mkdtempSync(join(tmpdir(), 'cc-test-mode-')), 'store.json'));
   store.transaction(s => { s.orgs.org1 = { id: 'org1' }; });
   const calls = [];
-  const remote = { subscriptions: {}, invoices: {} };
+  const remote = { subscriptions: {}, invoices: {}, sessions: {} };
   const fetchImpl = async (url, opts) => {
     calls.push({ url, opts });
     const path = url.replace('https://api.stripe.com/v1', '');
@@ -34,8 +34,19 @@ function harness() {
       const body = remote.invoices[decodeURIComponent(path.slice('/invoices/'.length))];
       return body ? new Response(JSON.stringify(body)) : new Response('{}', { status: 404 });
     }
+    if (method === 'GET' && path.startsWith('/checkout/sessions/')) {
+      const body = remote.sessions[decodeURIComponent(path.slice('/checkout/sessions/'.length))];
+      return body ? new Response(JSON.stringify(body)) : new Response('{}', { status: 404 });
+    }
     if (path === '/checkout/sessions') {
-      return new Response(JSON.stringify({ id: 'cs_test', livemode: false, url: 'https://checkout.stripe.com/c/pay/test-fixture' }));
+      const form = new URLSearchParams(opts.body);
+      const session = {
+        id: 'cs_test', livemode: false, status: 'open', url: 'https://checkout.stripe.com/c/pay/test-fixture',
+        client_reference_id: form.get('client_reference_id'),
+        metadata: { app: form.get('metadata[app]'), org_id: form.get('metadata[org_id]') },
+      };
+      remote.sessions[session.id] = session;
+      return new Response(JSON.stringify(session));
     }
     if (path === '/billing_portal/sessions') {
       return new Response(JSON.stringify({ livemode: false, url: 'https://billing.stripe.com/p/session/test-fixture' }));
@@ -87,6 +98,8 @@ test('checkout posts the configured price and drops a livemode session', async (
   assert.equal(calls[0].url, 'https://api.stripe.com/v1/checkout/sessions');
   const form = new URLSearchParams(calls[0].opts.body);
   assert.equal(form.get('line_items[0][price]'), 'price_owner');
+  assert.equal(calls[0].opts.headers['idempotency-key']?.startsWith('costcap-'), true);
+  assert.equal(store.read(s => s.orgs.org1.billing.checkout.id), 'cs_test');
   assert.equal(calls.some(c => c.url.includes('/prices')), false);
   assert.equal((await client.status('org1')).status, 'free_beta');
   calls.length = 0;
@@ -143,12 +156,83 @@ test('ended and past_due test subscriptions and a refunded invoice', async () =>
   assert.equal(store.read(s => s.orgs.org1.billing.subscriptionId), undefined);
   assert.equal((await client.checkout({ orgId: 'org1', email: 'owner@example.invalid' })).url, 'https://checkout.stripe.com/c/pay/test-fixture');
   remote.subscriptions.sub_paid = sub('sub_paid', 'active');
-  remote.invoices.in_test = { id: 'in_test', livemode: false, status: 'paid', currency: 'usd', amount_paid: 100, metadata: { org_id: 'org1' } };
+  remote.invoices.in_test = {
+    id: 'in_test', livemode: false, status: 'paid', currency: 'usd', amount_paid: 100,
+    customer: 'cus_test', subscription: 'sub_paid', metadata: { org_id: 'org1' },
+  };
   await post(client, { id: 'evt_paid', livemode: false, type: 'invoice.paid', data: { object: { id: 'in_test', subscription: 'sub_paid' } } });
   assert.equal((await client.status('org1')).paidInvoiceCount, 1);
   remote.invoices.in_test.amount_paid = 0;
   await post(client, { id: 'evt_refund', livemode: false, type: 'charge.refunded', data: { object: { id: 'ch_test', invoice: 'in_test' } } });
   assert.equal((await client.status('org1')).paidInvoiceCount, 0);
+  assert.equal((await client.status('org1')).amount, null);
+});
+
+test('a foreign test invoice or refund does not change the paid count', async () => {
+  const { store, fetchImpl, remote } = harness();
+  store.transaction(s => { s.orgs.org2 = { id: 'org2' }; });
+  const client = createTestModeStripeBilling({
+    secretKey: 'sk_test_fixture', webhookSecret: secret, priceId: 'price_fixture',
+    origin: 'https://app.costcap.dev', store, fetchImpl, now: () => clock, log: () => {},
+  });
+  const foreign = (id, patch) => ({ ...sub(id, 'active'), ...patch });
+  remote.subscriptions.sub_other = foreign('sub_other', { metadata: { app: 'other', org_id: 'org1' } });
+  remote.invoices.in_other = {
+    id: 'in_other', livemode: false, status: 'paid', currency: 'usd', amount_paid: 1900,
+    customer: 'cus_test', subscription: 'sub_other', metadata: { org_id: 'org1' },
+  };
+  await post(client, { id: 'evt_foreign', livemode: false, type: 'invoice.paid', data: { object: { id: 'in_other', subscription: 'sub_other' } } });
+  remote.subscriptions.sub_price = foreign('sub_price', {});
+  remote.subscriptions.sub_price.items.data[0].price.id = 'price_other';
+  remote.invoices.in_price = { ...remote.invoices.in_other, id: 'in_price', subscription: 'sub_price' };
+  await post(client, { id: 'evt_price', livemode: false, type: 'invoice.paid', data: { object: { id: 'in_price', subscription: 'sub_price' } } });
+  remote.subscriptions.sub_ok = sub('sub_ok', 'active');
+  remote.invoices.in_mismatch = {
+    id: 'in_mismatch', livemode: false, status: 'paid', currency: 'usd', amount_paid: 1900,
+    customer: 'cus_other', subscription: 'sub_ok', metadata: { org_id: 'org1' },
+  };
+  await post(client, { id: 'evt_customer', livemode: false, type: 'invoice.paid', data: { object: { id: 'in_mismatch', subscription: 'sub_ok' } } });
+  assert.equal((await client.status('org1')).paidInvoiceCount, 0);
+  assert.equal((await client.status('org1')).status, 'active');
+  remote.invoices.in_ok = {
+    id: 'in_ok', livemode: false, status: 'paid', currency: 'usd', amount_paid: 100,
+    customer: 'cus_test', subscription: 'sub_ok',
+  };
+  await post(client, { id: 'evt_ok', livemode: false, type: 'invoice.paid', data: { object: { id: 'in_ok', subscription: 'sub_ok' } } });
+  assert.equal((await client.status('org1')).paidInvoiceCount, 1);
+  remote.invoices.in_meta = {
+    id: 'in_meta', livemode: false, status: 'paid', currency: 'usd', amount_paid: 0,
+    metadata: { org_id: 'org1' },
+  };
+  await post(client, { id: 'evt_meta', livemode: false, type: 'charge.refunded', data: { object: { id: 'ch_meta', invoice: 'in_meta' } } });
+  remote.subscriptions.sub_other_refund = foreign('sub_other_refund', { metadata: { app: 'other', org_id: 'org1' } });
+  remote.invoices.in_foreign_refund = {
+    id: 'in_foreign_refund', livemode: false, status: 'paid', currency: 'usd', amount_paid: 0,
+    customer: 'cus_test', subscription: 'sub_other_refund', metadata: { org_id: 'org1' },
+  };
+  await post(client, { id: 'evt_foreign_refund', livemode: false, type: 'charge.refunded', data: { object: { id: 'ch_foreign', invoice: 'in_foreign_refund' } } });
+  assert.equal((await client.status('org1')).paidInvoiceCount, 1);
+  assert.equal(store.read(s => s.orgs.org2.billing), undefined);
+});
+
+test('a completed test checkout is re-read before it grants a plan', async () => {
+  const { store, calls, fetchImpl, remote } = harness();
+  const client = createTestModeStripeBilling({
+    secretKey: 'sk_test_fixture', webhookSecret: secret, priceId: 'price_fixture',
+    origin: 'https://app.costcap.dev', store, fetchImpl, now: () => clock, log: () => {},
+  });
+  const first = await client.checkout({ orgId: 'org1', email: 'owner@example.invalid' });
+  const posts = () => calls.filter(c => c.url === 'https://api.stripe.com/v1/checkout/sessions').length;
+  assert.equal(posts(), 1);
+  const second = await client.checkout({ orgId: 'org1', email: 'owner@example.invalid' });
+  assert.equal(second.url, first.url);
+  assert.equal(posts(), 1);
+  remote.sessions.cs_test.status = 'complete';
+  remote.sessions.cs_test.subscription = 'sub_from_checkout';
+  remote.subscriptions.sub_from_checkout = { ...sub('sub_from_checkout', 'active'), metadata: { app: 'other', org_id: 'org1' } };
+  assert.equal((await client.status('org1')).status, 'free_beta');
+  remote.subscriptions.sub_from_checkout = sub('sub_from_checkout', 'active');
+  assert.equal((await client.status('org1')).status, 'active');
   assert.equal((await client.status('org1')).amount, null);
 });
 

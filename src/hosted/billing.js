@@ -171,10 +171,13 @@ export function createTestModeStripeBilling({ secretKey, webhookSecret, priceId,
     log("costcap: test-mode Stripe configuration refused");
     return null;
   }
-  const request = async (path, data) => {
+  const request = async (path, data, idempotencyKey) => {
     const res = await fetchImpl(`https://api.stripe.com/v1${path}`, {
       method: "POST",
-      headers: { authorization: `Bearer ${secretKey}`, "content-type": "application/x-www-form-urlencoded" },
+      headers: {
+        authorization: `Bearer ${secretKey}`, "content-type": "application/x-www-form-urlencoded",
+        ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
+      },
       body: new URLSearchParams(data).toString(), redirect: "error", signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) throw problem(503, "Billing provider unavailable");
@@ -220,6 +223,12 @@ export function createTestModeStripeBilling({ secretKey, webhookSecret, priceId,
     });
     return true;
   };
+  const idOf = (value) => (typeof value === "string" ? value : value?.id);
+  const subscriptionIdOf = (invoice) => idOf(invoice?.subscription ?? invoice?.parent?.subscription_details?.subscription);
+  const invoiceMatches = (invoice, sub) => scoped(sub)
+    && invoice?.livemode === false && invoice.currency === "usd" && Boolean(invoice.id)
+    && subscriptionIdOf(invoice) === sub.id
+    && idOf(invoice.customer) === idOf(sub.customer);
   const recordInvoice = (orgId, invoice) => {
     if (invoice?.livemode !== false || invoice.currency !== "usd" || !invoice.id) return;
     if (!store.read(s => s.orgs[orgId])) return;
@@ -231,28 +240,53 @@ export function createTestModeStripeBilling({ secretKey, webhookSecret, priceId,
       b.paidInvoiceCount = Object.values(b.invoices).filter(i => i.amountPaid > 0).length;
     });
   };
+  const syncCheckout = async (orgId) => {
+    const pending = store.read(s => s.orgs[orgId]?.billing?.checkout);
+    if (!pending?.id) return null;
+    const session = await read(`/checkout/sessions/${encodeURIComponent(pending.id)}`);
+    if (session.livemode !== false || session.client_reference_id !== orgId
+      || session.metadata?.app !== "costcap" || session.metadata?.org_id !== orgId) return null;
+    const subId = idOf(session.subscription);
+    if (session.status === "complete" && subId) {
+      const sub = await read(`/subscriptions/${encodeURIComponent(subId)}`);
+      if (sub.livemode === false) applySubscription(sub);
+    }
+    return session;
+  };
   return {
     async status(orgId) {
       const subId = store.read(s => s.orgs[orgId]?.billing?.subscriptionId);
       if (subId) {
         const sub = await read(`/subscriptions/${encodeURIComponent(subId)}`);
         if (sub.livemode === false) applySubscription(sub);
-      }
+      } else await syncCheckout(orgId);
       return store.read(s => publicStatus(s, orgId));
     },
     async checkout(user) {
+      await syncCheckout(user.orgId);
       const state = store.read(s => s.orgs[user.orgId]?.billing ?? {});
       if (state.subscriptionId && !ended.has(state.status)) throw problem(409, "Manage your existing subscription instead");
+      const open = state.checkout?.id ? await read(`/checkout/sessions/${encodeURIComponent(state.checkout.id)}`) : null;
+      if (open?.livemode === false && open.status === "open" && open.client_reference_id === user.orgId
+        && /^https:\/\/checkout\.stripe\.com\//.test(open.url ?? "")) return { url: open.url };
+      let key;
+      store.transaction(s => {
+        const b = s.orgs[user.orgId].billing ??= {};
+        if (!b.checkout || open?.status === "expired") b.checkout = { key: `costcap-${randomUUID()}` };
+        key = b.checkout.key;
+      });
       const session = await request("/checkout/sessions", {
         mode: "subscription", "line_items[0][price]": priceId, "line_items[0][quantity]": "1",
         client_reference_id: user.orgId, customer_email: user.email,
         "metadata[app]": "costcap", "metadata[org_id]": user.orgId,
         "subscription_data[metadata][app]": "costcap", "subscription_data[metadata][org_id]": user.orgId,
         success_url: `${origin}/?checkout=returned`, cancel_url: `${origin}/?checkout=canceled`,
-      });
-      if (session.livemode !== false || !session.id || !/^https:\/\/checkout\.stripe\.com\//.test(session.url ?? "")) {
+      }, key);
+      if (session.livemode !== false || !session.id || !/^https:\/\/checkout\.stripe\.com\//.test(session.url ?? "")
+        || session.client_reference_id !== user.orgId || session.metadata?.app !== "costcap" || session.metadata?.org_id !== user.orgId) {
         throw problem(503, "Invalid Checkout response");
       }
+      store.transaction(s => { s.orgs[user.orgId].billing.checkout.id = session.id; });
       return { url: session.url };
     },
     async portal(orgId) {
@@ -280,17 +314,18 @@ export function createTestModeStripeBilling({ secretKey, webhookSecret, priceId,
           store.transaction(s => { s.billingEvents ??= {}; s.billingEvents[event.id] = { type: event.type, at: now(), ignored: true }; });
           return { received: true, ignored: true };
         }
-        applySubscription(sub);
-        if (event.type === "invoice.paid" && object?.id) {
+        const accepted = applySubscription(sub);
+        if (event.type === "invoice.paid" && object?.id && accepted) {
           const invoice = await read(`/invoices/${encodeURIComponent(object.id)}`);
-          if (invoice.livemode === false) recordInvoice(sub.metadata?.org_id, invoice);
+          if (invoiceMatches(invoice, sub)) recordInvoice(sub.metadata.org_id, invoice);
         }
       }
       if (event.type === "charge.refunded" && typeof object?.invoice === "string") {
         const invoice = await read(`/invoices/${encodeURIComponent(object.invoice)}`);
-        if (invoice.livemode === false) {
-          const orgId = invoice.metadata?.org_id ?? invoice.subscription_details?.metadata?.org_id;
-          recordInvoice(orgId, invoice);
+        const subId = subscriptionIdOf(invoice);
+        if (invoice.livemode === false && subId) {
+          const sub = await read(`/subscriptions/${encodeURIComponent(subId)}`);
+          if (sub.livemode === false && invoiceMatches(invoice, sub)) recordInvoice(sub.metadata.org_id, invoice);
         }
       }
       store.transaction(s => { s.billingEvents ??= {}; s.billingEvents[event.id] = { type: event.type, at: now() }; });
