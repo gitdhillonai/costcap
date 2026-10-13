@@ -15,8 +15,13 @@ COSTCAP_STRIPE_PRICE_ID. Store secrets only in secure deployment settings.
 `COSTCAP_STRIPE_MODE=test` accepts only an `sk_test_` key. A live key refuses
 to build the client and does not call Stripe. Test mode does not create or
 edit a price; it sends the owner-supplied `COSTCAP_STRIPE_PRICE_ID`. A
-`livemode: true` Checkout response or webhook does not grant a plan. The
-default mode stays `live` and still requires the existing $19 monthly readback.
+`livemode: true` Checkout response or webhook does not grant a plan. A
+test-mode subscription or invoice is granted only after a GET of that object
+comes back `livemode: false` with the configured price. `canceled`, `unpaid`,
+and `incomplete_expired` return the workspace to the free beta. `past_due`
+stays on the plan and blocks a second checkout. A refunded invoice with
+`amount_paid` of 0 does not count as paid. The test-mode page shows no price.
+The default mode stays `live` and still requires the existing $19 monthly readback.
 
 Startup must verify the live account is the configured Persoon.ai Inc account,
 charges are enabled, and the active live price is USD 1900, monthly, licensed,

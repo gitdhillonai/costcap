@@ -63,6 +63,14 @@ test('hosted root serves UI; fleet remains protected and assets do not expose se
   assert.equal((await fetch(base+'/assets/app.js')).status,200);
 });
 
+test('test-mode billing page shows no public price', () => {
+  const html = uiResponse('/', '', 'https://app.costcap.dev', false, 'test');
+  assert.match(html.body, /No public price/);
+  assert.equal(html.body.includes('$19'), false);
+  assert.match(uiResponse('/').body, /No card\. No charges\./);
+  assert.match(uiResponse('/', '', 'https://app.costcap.dev', true).body, /\$19 USD per month/);
+});
+
 test('GA4 tag G-P6NP48RRGC installed CSP-clean (issue #53)', () => {
   const html = uiResponse('/');
   // External loader from googletagmanager, same-origin config - no inline script.

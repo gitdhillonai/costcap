@@ -180,16 +180,69 @@ export function createTestModeStripeBilling({ secretKey, webhookSecret, priceId,
     if (!res.ok) throw problem(503, "Billing provider unavailable");
     return res.json();
   };
+  const ended = new Set(["canceled", "unpaid", "incomplete_expired"]);
+  const read = async (path) => {
+    const res = await fetchImpl(`https://api.stripe.com/v1${path}`, {
+      method: "GET",
+      headers: { authorization: `Bearer ${secretKey}` },
+      redirect: "error", signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw problem(503, "Billing provider unavailable");
+    return res.json();
+  };
   const publicStatus = (s, orgId) => {
     const b = s.orgs[orgId]?.billing;
-    return { enabled: true, amount: null, currency: "usd", interval: "month", status: b?.status ?? "free_beta",
+    const status = b?.status ?? "free_beta";
+    return { enabled: true, amount: null, currency: "usd", interval: "month",
+      status: ended.has(status) ? "free_beta" : status,
       cancelAtPeriodEnd: b?.cancelAtPeriodEnd ?? false, paidInvoiceCount: b?.paidInvoiceCount ?? 0 };
+  };
+  const scoped = (sub) => sub?.livemode === false && sub.metadata?.app === "costcap"
+    && sub.items?.data?.length === 1 && sub.items.data[0].price.id === priceId && sub.items.data[0].quantity === 1;
+  const applySubscription = (sub) => {
+    if (!scoped(sub)) return false;
+    const orgId = sub.metadata.org_id;
+    store.transaction(s => {
+      if (!s.orgs[orgId]) throw problem(400, "Unknown workspace");
+      const b = s.orgs[orgId].billing ??= {};
+      if (b.subscriptionId && b.subscriptionId !== sub.id && !ended.has(b.status)) throw problem(409, "Subscription conflict");
+      const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
+      if (ended.has(sub.status)) {
+        b.lastSubscriptionId = sub.id;
+        delete b.subscriptionId;
+        Object.assign(b, { customerId, status: "free_beta", endedStatus: sub.status, cancelAtPeriodEnd: false, verifiedAt: now() });
+      } else {
+        Object.assign(b, {
+          subscriptionId: sub.id, customerId, status: sub.status,
+          cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end), verifiedAt: now(),
+        });
+      }
+    });
+    return true;
+  };
+  const recordInvoice = (orgId, invoice) => {
+    if (invoice?.livemode !== false || invoice.currency !== "usd" || !invoice.id) return;
+    if (!store.read(s => s.orgs[orgId])) return;
+    store.transaction(s => {
+      const b = s.orgs[orgId].billing ??= {};
+      b.invoices ??= {};
+      const amountPaid = invoice.status === "paid" && invoice.amount_paid > 0 ? invoice.amount_paid : 0;
+      b.invoices[invoice.id] = { amountPaid, currency: invoice.currency, verifiedAt: now() };
+      b.paidInvoiceCount = Object.values(b.invoices).filter(i => i.amountPaid > 0).length;
+    });
   };
   return {
     async status(orgId) {
+      const subId = store.read(s => s.orgs[orgId]?.billing?.subscriptionId);
+      if (subId) {
+        const sub = await read(`/subscriptions/${encodeURIComponent(subId)}`);
+        if (sub.livemode === false) applySubscription(sub);
+      }
       return store.read(s => publicStatus(s, orgId));
     },
     async checkout(user) {
+      const state = store.read(s => s.orgs[user.orgId]?.billing ?? {});
+      if (state.subscriptionId && !ended.has(state.status)) throw problem(409, "Manage your existing subscription instead");
       const session = await request("/checkout/sessions", {
         mode: "subscription", "line_items[0][price]": priceId, "line_items[0][quantity]": "1",
         client_reference_id: user.orgId, customer_email: user.email,
@@ -215,31 +268,29 @@ export function createTestModeStripeBilling({ secretKey, webhookSecret, priceId,
       const event = verifyStripeEvent(raw, signature, webhookSecret, now(), { livemode: null });
       if (event.livemode !== false) return { received: true, ignored: true };
       if (store.read(s => Boolean(s.billingEvents?.[event.id]))) return { received: true, duplicate: true };
-      const sub = event.type?.startsWith("customer.subscription.") ? event.data?.object : null;
-      if (sub && sub.livemode === false && sub.metadata?.app === "costcap" && sub.items?.data?.length === 1
-        && sub.items.data[0].price.id === priceId && sub.items.data[0].quantity === 1) {
-        const orgId = sub.metadata.org_id;
-        store.transaction(s => {
-          if (!s.orgs[orgId]) throw problem(400, "Unknown workspace");
-          const b = s.orgs[orgId].billing ??= {};
-          if (b.subscriptionId && b.subscriptionId !== sub.id) throw problem(409, "Subscription conflict");
-          Object.assign(b, {
-            subscriptionId: sub.id,
-            customerId: typeof sub.customer === "string" ? sub.customer : sub.customer?.id,
-            status: sub.status, cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end), verifiedAt: now(),
-          });
-        });
+      const object = event.data?.object;
+      let subId = null;
+      if (event.type?.startsWith("customer.subscription.")) subId = object?.id;
+      else if (event.type === "checkout.session.completed" || event.type === "invoice.paid") {
+        subId = object?.subscription ?? object?.parent?.subscription_details?.subscription;
       }
-      if (event.type === "invoice.paid") {
-        const invoice = event.data?.object;
-        const orgId = invoice?.metadata?.org_id ?? invoice?.subscription_details?.metadata?.org_id;
-        if (invoice?.livemode === false && invoice.status === "paid" && invoice.currency === "usd" && invoice.amount_paid > 0 && orgId && store.read(s => s.orgs[orgId])) {
-          store.transaction(s => {
-            const b = s.orgs[orgId].billing ??= {};
-            b.invoices ??= {};
-            b.invoices[invoice.id] = { amountPaid: invoice.amount_paid, currency: invoice.currency, verifiedAt: now() };
-            b.paidInvoiceCount = Object.values(b.invoices).filter(i => i.amountPaid > 0).length;
-          });
+      if (typeof subId === "string") {
+        const sub = await read(`/subscriptions/${encodeURIComponent(subId)}`);
+        if (sub.livemode !== false) {
+          store.transaction(s => { s.billingEvents ??= {}; s.billingEvents[event.id] = { type: event.type, at: now(), ignored: true }; });
+          return { received: true, ignored: true };
+        }
+        applySubscription(sub);
+        if (event.type === "invoice.paid" && object?.id) {
+          const invoice = await read(`/invoices/${encodeURIComponent(object.id)}`);
+          if (invoice.livemode === false) recordInvoice(sub.metadata?.org_id, invoice);
+        }
+      }
+      if (event.type === "charge.refunded" && typeof object?.invoice === "string") {
+        const invoice = await read(`/invoices/${encodeURIComponent(object.invoice)}`);
+        if (invoice.livemode === false) {
+          const orgId = invoice.metadata?.org_id ?? invoice.subscription_details?.metadata?.org_id;
+          recordInvoice(orgId, invoice);
         }
       }
       store.transaction(s => { s.billingEvents ??= {}; s.billingEvents[event.id] = { type: event.type, at: now() }; });
