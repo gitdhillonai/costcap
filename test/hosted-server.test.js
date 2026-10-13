@@ -11,7 +11,7 @@ async function fixture(t, { now } = {}) {
   let service;
   const origin = "http://localhost";
   const start = async () => {
-    service = createHostedServer({ storePath, origin, secureCookies: false, now, verifyChallenge: async (value) => value === "test-pass", sendCode: async (data) => { if (failCode) throw new Error("mail down"); code = data.code; }, sendInvite: async (data) => { if (failInvite) throw new Error("mail down"); invites.push(data); }, deliverAlert: async (a) => { delivery.push(a); return deliveryResult ?? [{ status: failDelivery ? "failed" : "accepted" }]; } });
+    service = createHostedServer({ storePath, origin, secureCookies: false, now, stripeEnv: {}, verifyChallenge: async (value) => value === "test-pass", sendCode: async (data) => { if (failCode) throw new Error("mail down"); code = data.code; }, sendInvite: async (data) => { if (failInvite) throw new Error("mail down"); invites.push(data); }, deliverAlert: async (a) => { delivery.push(a); return deliveryResult ?? [{ status: failDelivery ? "failed" : "accepted" }]; } });
     await new Promise((r) => service.server.listen(0, "127.0.0.1", r));
   };
   await start();
@@ -88,6 +88,15 @@ test("billing stays disabled and there is no charge route", async (t) => {
   assert.equal(fleet.body.billing, "disabled");
   assert.equal((await f.request("/billing")).status, 404);
   assert.equal((await f.request("/stripe/checkout", {})).status, 404);
+  const stripe = await f.request("/api/health/stripe");
+  assert.equal(stripe.status, 200);
+  assert.equal(stripe.body.status, "ok");
+  assert.equal(stripe.body.stripe, "disabled");
+  assert.deepEqual(stripe.body.checks, { secretKey: false, webhookSecret: false, accountId: false, priceId: false });
+  const raw = JSON.stringify(stripe.body);
+  assert.equal(raw.includes("sk_"), false);
+  assert.equal(raw.includes("rk_"), false);
+  assert.equal(raw.includes("whsec_"), false);
 });
 
 test("an invitation joins that org and a viewer cannot change policy or invite", async (t) => {
@@ -198,6 +207,7 @@ test("a step-budget receipt pages once, ages out, and re-arms", async (t) => {
   await f.service().evaluateFleetAlerts();
   assert.equal(f.delivery.length, 1);
   assert.equal(f.delivery[0].kind, "loop_detected");
+  assert.equal(f.delivery.filter((d) => d.kind === "cap_hit").length, 0);
   assert.equal(f.delivery[0].key, `loop_detected:${agent.agentId}`);
   await f.service().evaluateFleetAlerts();
   assert.equal(f.delivery.length, 1);

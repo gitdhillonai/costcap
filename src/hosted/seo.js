@@ -40,6 +40,7 @@ export function robotsTxt(origin = PUBLIC_ORIGIN) {
     "Disallow: /auth/",
     "Disallow: /v1/",
     "Disallow: /health",
+    "Disallow: /api/health/",
     "Disallow: /ui/",
     "",
     `Sitemap: ${base}/sitemap.xml`,

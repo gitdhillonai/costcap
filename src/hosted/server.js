@@ -7,6 +7,7 @@ import { openStore } from "./store.js";
 import { hashToken, validatePolicy } from "./policy.js";
 import { evaluateAlerts, auditEntry } from "./alerts.js";
 import { VERSION } from "../version.js";
+import { stripeHealth } from "./billing.js";
 const token = () => randomBytes(32).toString("base64url");
 const fail = (status, message) => { const err = new Error(message); err.status = status; throw err; };
 const audit = (s, orgId, actor, action, target, detail = {}) => s.audit.push(auditEntry({ orgId, actor, action, target, detail }));
@@ -44,7 +45,7 @@ export function spendSummary(receipts, nowMs) {
 
 export function createHostedServer({ storePath, verifyChallenge, sendCode, sendInvite, deliverAlert,
   now = () => Date.now(), secureCookies = true, origin, turnstileSiteKey = "", bodyLimit = 256_000,
-  requestLog = () => {}, billingFactory } = {}) {
+  requestLog = () => {}, billingFactory, stripeEnv = process.env } = {}) {
   if (!storePath || !verifyChallenge || !sendCode || !origin) throw new Error("Store, origin, Turnstile verifier and authorized code sender required");
   const store = openStore(storePath);
   let billing;
@@ -85,6 +86,10 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, sendI
         if (ui) return res.writeHead(200, ui.headers).end(ui.body);
       }
       if (req.method === "GET" && path === "/health") return json(200, { status: "ok", product: "CostCap", beta: true, billing: billing ? "enabled" : "disabled", persistence: "single-process-file", version: VERSION, sha: process.env.COSTCAP_GIT_SHA || null });
+      if (req.method === "GET" && path === "/api/health/stripe") {
+        await billingReady;
+        return json(200, stripeHealth({ enabled: Boolean(billing), env: stripeEnv }));
+      }
       const browserMutation = req.method !== "GET" && !req.headers.authorization;
       if (browserMutation && !(billing && path === "/billing/webhook") && req.headers.origin !== origin) fail(403, "Origin rejected");
       let text = "";

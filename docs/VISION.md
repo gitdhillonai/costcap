@@ -16,7 +16,7 @@ Set cap > wrap command > inspect receipt; optional hosted fleet policy.
 
 ## Mission
 
-Bound proxy-mediated spend and explain what was counted.
+Bound proxy-mediated spend and explain what was counted. A public Stripe health check reports whether billing is disabled, ready, or misconfigured, without returning credentials.
 
 ## Three-year vision (aspiration)
 

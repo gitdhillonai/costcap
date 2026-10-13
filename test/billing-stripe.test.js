@@ -5,7 +5,7 @@ import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { openStore } from '../src/hosted/store.js';
-import { createStripeBilling, verifyStripeEvent } from '../src/hosted/billing.js';
+import { createStripeBilling, stripeHealth, verifyStripeEvent } from '../src/hosted/billing.js';
 const secret = 'whsec_fixture';
 const clock = 1800000000000;
 const sign = raw => `t=${clock/1000},v1=${createHmac('sha256', secret).update(`${clock/1000}.${raw}`).digest('hex')}`;
@@ -29,6 +29,25 @@ function fixture(overrides = {}) {
  return new Response(JSON.stringify(data),{status:data?200:404});}};
  return {store,options,calls,event,sub,invoice,complete:()=>{session={...session,status:'complete',subscription:sub.id}}};
 }
+test('stripe health reports shapes only and never the secret values', () => {
+  const empty = stripeHealth({ enabled: false, env: {} });
+  assert.equal(empty.stripe, 'disabled');
+  assert.deepEqual(empty.checks, { secretKey: false, webhookSecret: false, accountId: false, priceId: false });
+  const env = {
+    COSTCAP_STRIPE_SECRET_KEY: 'rk_live_fixture',
+    COSTCAP_STRIPE_WEBHOOK_SECRET: 'whsec_fixture',
+    COSTCAP_STRIPE_ACCOUNT_ID: 'acct_fixture',
+    COSTCAP_STRIPE_PRICE_ID: 'price_fixture',
+  };
+  const ready = stripeHealth({ enabled: true, env });
+  assert.equal(ready.stripe, 'ready');
+  assert.deepEqual(Object.values(ready.checks), [true, true, true, true]);
+  assert.equal(JSON.stringify(ready).includes('rk_live_fixture'), false);
+  assert.equal(JSON.stringify(ready).includes('whsec_fixture'), false);
+  assert.equal(stripeHealth({ enabled: false, env }).stripe, 'misconfigured');
+  assert.equal(stripeHealth({ enabled: true, env: { ...env, COSTCAP_STRIPE_SECRET_KEY: 'sk_test_fixture' } }).stripe, 'misconfigured');
+  assert.equal(stripeHealth({ enabled: true, env: { ...env, COSTCAP_STRIPE_PRICE_ID: 'price_1900' } }).checks.priceId, true);
+});
 test('Stripe signatures reject altered, expired and test-mode events',()=>{
  const raw=JSON.stringify({id:'evt_fixture',livemode:true});
  assert.equal(verifyStripeEvent(raw,sign(raw),secret,clock).id,'evt_fixture');

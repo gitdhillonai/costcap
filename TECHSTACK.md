@@ -14,7 +14,7 @@ CostCap is a Node.js 20+ ESM package with no runtime dependencies. The CLI and l
 | Store | Single-process JSON file. Postgres migrations exist under `db/migrations/` and are proven in CI only. Production stays on the JSON store until `/health` reports a database backend. |
 | Mail | Brevo, when `COSTCAP_EMAIL_PROVIDER=brevo` and deployment secrets are set. The launcher rejects other providers. |
 | Bot check | Cloudflare Turnstile on hosted sign-in |
-| Billing | Disabled unless an owner enables it after a Stripe readback. There is no price change in this repo's docs pass. |
+| Billing | Disabled unless an owner enables it after a Stripe readback. There is no price change in this repo's docs pass. `GET /api/health/stripe` reports `disabled`, `ready`, or `misconfigured` with boolean shape checks only. |
 
 ## Deploy contract
 

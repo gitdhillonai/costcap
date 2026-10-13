@@ -2,6 +2,25 @@
 // as payment evidence. All amounts/currency/intervals are checked server-side.
 import { createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
 const problem = (status, message) => Object.assign(new Error(message), { status });
+
+// Public probe. Booleans only: never echo a key, webhook secret, account id, or price id.
+export function stripeHealth({ enabled = false, env = {} } = {}) {
+  const secret = env.COSTCAP_STRIPE_SECRET_KEY ?? "";
+  const webhook = env.COSTCAP_STRIPE_WEBHOOK_SECRET ?? "";
+  const account = env.COSTCAP_STRIPE_ACCOUNT_ID ?? "";
+  const price = env.COSTCAP_STRIPE_PRICE_ID ?? "";
+  const checks = {
+    secretKey: /^(sk_live_|rk_live_)/.test(secret),
+    webhookSecret: webhook.startsWith("whsec_") && webhook.length > "whsec_".length,
+    accountId: /^acct_[A-Za-z0-9]+$/.test(account),
+    priceId: /^price_[A-Za-z0-9]+$/.test(price),
+  };
+  const shapes = Object.values(checks).every(Boolean);
+  let stripe = "disabled";
+  if (enabled && shapes) stripe = "ready";
+  else if (enabled || shapes) stripe = "misconfigured";
+  return { status: "ok", stripe, checks };
+}
 export function verifyStripeEvent(raw, signature, secret, now = Date.now()) {
   const fields = String(signature ?? '').split(',').map(x => x.split('='));
   const stamp = fields.find(([k]) => k === 't')?.[1];

@@ -11,6 +11,7 @@ test('public allowlist is only the landing; discovery files omit private routes'
   assert.match(robots, /^Sitemap: https:\/\/costcap\.dev\/sitemap\.xml$/m);
   assert.match(robots, /^Disallow: \/auth\/$/m);
   assert.match(robots, /^Disallow: \/v1\/$/m);
+  assert.match(robots, /^Disallow: \/api\/health\/$/m);
   const xml = sitemapXml('https://costcap.dev', '2026-10-09');
   assert.match(xml, /<loc>https:\/\/costcap\.dev<\/loc>/);
   for (const loc of xml.matchAll(/<loc>([^<]+)<\/loc>/g)) {
