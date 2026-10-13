@@ -33,11 +33,25 @@ if have["COSTCAP_EMAIL_PROVIDER"] != "brevo":
 if not have["COSTCAP_ORIGIN"].startswith("https://"):
     print("deploy: COSTCAP_ORIGIN must be https", file=sys.stderr)
     raise SystemExit(2)
-optional = ["COSTCAP_BILLING", "COSTCAP_STRIPE_SECRET_KEY", "COSTCAP_STRIPE_WEBHOOK_SECRET", "COSTCAP_STRIPE_ACCOUNT_ID", "COSTCAP_STRIPE_PRICE_ID"]
+optional = ["COSTCAP_BILLING", "COSTCAP_STRIPE_MODE", "COSTCAP_STRIPE_SECRET_KEY", "COSTCAP_STRIPE_WEBHOOK_SECRET", "COSTCAP_STRIPE_ACCOUNT_ID", "COSTCAP_STRIPE_PRICE_ID"]
+mode = have.get("COSTCAP_STRIPE_MODE") or "live"
+if mode not in ("live", "test"):
+    print("deploy: COSTCAP_STRIPE_MODE must be live or test", file=sys.stderr)
+    raise SystemExit(2)
 if have.get("COSTCAP_BILLING") == "enabled":
-    missing_billing = [key for key in optional[1:] if not have.get(key)]
+    needed = ["COSTCAP_STRIPE_SECRET_KEY", "COSTCAP_STRIPE_WEBHOOK_SECRET", "COSTCAP_STRIPE_PRICE_ID"]
+    if mode == "live":
+        needed.append("COSTCAP_STRIPE_ACCOUNT_ID")
+    missing_billing = [key for key in needed if not have.get(key)]
     if missing_billing:
         print("deploy: missing " + ", ".join(missing_billing), file=sys.stderr)
+        raise SystemExit(2)
+    key = have.get("COSTCAP_STRIPE_SECRET_KEY") or ""
+    if mode == "test" and not key.startswith("sk_test_"):
+        print("deploy: test mode requires an sk_test_ key", file=sys.stderr)
+        raise SystemExit(2)
+    if mode == "live" and not (key.startswith("sk_live_") or key.startswith("rk_live_")):
+        print("deploy: live mode requires a live restricted key", file=sys.stderr)
         raise SystemExit(2)
 lines = [f"export {key}={shlex.quote(have[key])}" for key in need + optional if key in have]
 pathlib.Path("/tmp/costcap-env.sh").write_text("\n".join(lines) + "\n")

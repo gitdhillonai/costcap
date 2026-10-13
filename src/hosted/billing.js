@@ -4,13 +4,13 @@ import { createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
 const problem = (status, message) => Object.assign(new Error(message), { status });
 
 // Public probe. Booleans only: never echo a key, webhook secret, account id, or price id.
-export function stripeHealth({ enabled = false, env = {} } = {}) {
+export function stripeHealth({ enabled = false, env = {}, mode = env.COSTCAP_STRIPE_MODE || "live" } = {}) {
   const secret = env.COSTCAP_STRIPE_SECRET_KEY ?? "";
   const webhook = env.COSTCAP_STRIPE_WEBHOOK_SECRET ?? "";
   const account = env.COSTCAP_STRIPE_ACCOUNT_ID ?? "";
   const price = env.COSTCAP_STRIPE_PRICE_ID ?? "";
   const checks = {
-    secretKey: /^(sk_live_|rk_live_)/.test(secret),
+    secretKey: mode === "test" ? secret.startsWith("sk_test_") : /^(sk_live_|rk_live_)/.test(secret),
     webhookSecret: webhook.startsWith("whsec_") && webhook.length > "whsec_".length,
     accountId: /^acct_[A-Za-z0-9]+$/.test(account),
     priceId: /^price_[A-Za-z0-9]+$/.test(price),
@@ -21,7 +21,7 @@ export function stripeHealth({ enabled = false, env = {} } = {}) {
   else if (enabled || shapes) stripe = "misconfigured";
   return { status: "ok", stripe, checks };
 }
-export function verifyStripeEvent(raw, signature, secret, now = Date.now()) {
+export function verifyStripeEvent(raw, signature, secret, now = Date.now(), { livemode = true } = {}) {
   const fields = String(signature ?? '').split(',').map(x => x.split('='));
   const stamp = fields.find(([k]) => k === 't')?.[1];
   if (!/^\d+$/.test(stamp ?? '') || Math.abs(now / 1000 - Number(stamp)) > 300) throw problem(400, 'Invalid webhook timestamp');
@@ -33,7 +33,7 @@ export function verifyStripeEvent(raw, signature, secret, now = Date.now()) {
   if (!valid) throw problem(400, 'Invalid webhook signature');
   let event;
   try { event = JSON.parse(raw); } catch { throw problem(400, 'Invalid webhook JSON'); }
-  if (!event.id || event.livemode !== true) throw problem(400, 'Live event required');
+  if (!event.id || (livemode !== null && event.livemode !== livemode)) throw problem(400, livemode ? 'Live event required' : 'Test event required');
   return event;
 }
 export async function createStripeBilling({ secretKey, webhookSecret, accountId, priceId, origin, store,
@@ -151,6 +151,95 @@ export async function createStripeBilling({ secretKey, webhookSecret, accountId,
               });
             }
           }
+        }
+      }
+      store.transaction(s => { s.billingEvents ??= {}; s.billingEvents[event.id] = { type: event.type, at: now() }; });
+      return { received: true };
+    },
+  };
+}
+
+// Test-mode checkout. Construction does not call Stripe. sk_live_ and every
+// other secret return null. This does not create or edit a price.
+export function createTestModeStripeBilling({ secretKey, webhookSecret, priceId, origin, store,
+  fetchImpl = fetch, now = () => Date.now(), log = console.error } = {}) {
+  if (!String(secretKey ?? "").startsWith("sk_test_")) {
+    log("costcap: test-mode Stripe key refused");
+    return null;
+  }
+  if (!String(webhookSecret ?? "").startsWith("whsec_") || !/^price_[A-Za-z0-9]+$/.test(priceId ?? "")) {
+    log("costcap: test-mode Stripe configuration refused");
+    return null;
+  }
+  const request = async (path, data) => {
+    const res = await fetchImpl(`https://api.stripe.com/v1${path}`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${secretKey}`, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(data).toString(), redirect: "error", signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw problem(503, "Billing provider unavailable");
+    return res.json();
+  };
+  const publicStatus = (s, orgId) => {
+    const b = s.orgs[orgId]?.billing;
+    return { enabled: true, amount: null, currency: "usd", interval: "month", status: b?.status ?? "free_beta",
+      cancelAtPeriodEnd: b?.cancelAtPeriodEnd ?? false, paidInvoiceCount: b?.paidInvoiceCount ?? 0 };
+  };
+  return {
+    async status(orgId) {
+      return store.read(s => publicStatus(s, orgId));
+    },
+    async checkout(user) {
+      const session = await request("/checkout/sessions", {
+        mode: "subscription", "line_items[0][price]": priceId, "line_items[0][quantity]": "1",
+        client_reference_id: user.orgId, customer_email: user.email,
+        "metadata[app]": "costcap", "metadata[org_id]": user.orgId,
+        "subscription_data[metadata][app]": "costcap", "subscription_data[metadata][org_id]": user.orgId,
+        success_url: `${origin}/?checkout=returned`, cancel_url: `${origin}/?checkout=canceled`,
+      });
+      if (session.livemode !== false || !session.id || !/^https:\/\/checkout\.stripe\.com\//.test(session.url ?? "")) {
+        throw problem(503, "Invalid Checkout response");
+      }
+      return { url: session.url };
+    },
+    async portal(orgId) {
+      const customer = store.read(s => s.orgs[orgId]?.billing?.customerId);
+      if (!customer) throw problem(409, "No billing customer yet");
+      const session = await request("/billing_portal/sessions", { customer, return_url: `${origin}/` });
+      if (session.livemode !== false || !/^https:\/\/billing\.stripe\.com\//.test(session.url ?? "")) {
+        throw problem(503, "Invalid billing portal response");
+      }
+      return { url: session.url };
+    },
+    async webhook(raw, signature) {
+      const event = verifyStripeEvent(raw, signature, webhookSecret, now(), { livemode: null });
+      if (event.livemode !== false) return { received: true, ignored: true };
+      if (store.read(s => Boolean(s.billingEvents?.[event.id]))) return { received: true, duplicate: true };
+      const sub = event.type?.startsWith("customer.subscription.") ? event.data?.object : null;
+      if (sub && sub.livemode === false && sub.metadata?.app === "costcap" && sub.items?.data?.length === 1
+        && sub.items.data[0].price.id === priceId && sub.items.data[0].quantity === 1) {
+        const orgId = sub.metadata.org_id;
+        store.transaction(s => {
+          if (!s.orgs[orgId]) throw problem(400, "Unknown workspace");
+          const b = s.orgs[orgId].billing ??= {};
+          if (b.subscriptionId && b.subscriptionId !== sub.id) throw problem(409, "Subscription conflict");
+          Object.assign(b, {
+            subscriptionId: sub.id,
+            customerId: typeof sub.customer === "string" ? sub.customer : sub.customer?.id,
+            status: sub.status, cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end), verifiedAt: now(),
+          });
+        });
+      }
+      if (event.type === "invoice.paid") {
+        const invoice = event.data?.object;
+        const orgId = invoice?.metadata?.org_id ?? invoice?.subscription_details?.metadata?.org_id;
+        if (invoice?.livemode === false && invoice.status === "paid" && invoice.currency === "usd" && invoice.amount_paid > 0 && orgId && store.read(s => s.orgs[orgId])) {
+          store.transaction(s => {
+            const b = s.orgs[orgId].billing ??= {};
+            b.invoices ??= {};
+            b.invoices[invoice.id] = { amountPaid: invoice.amount_paid, currency: invoice.currency, verifiedAt: now() };
+            b.paidInvoiceCount = Object.values(b.invoices).filter(i => i.amountPaid > 0).length;
+          });
         }
       }
       store.transaction(s => { s.billingEvents ??= {}; s.billingEvents[event.id] = { type: event.type, at: now() }; });

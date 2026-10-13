@@ -12,6 +12,12 @@ COSTCAP_BILLING=enabled, COSTCAP_STRIPE_SECRET_KEY,
 COSTCAP_STRIPE_WEBHOOK_SECRET, COSTCAP_STRIPE_ACCOUNT_ID,
 COSTCAP_STRIPE_PRICE_ID. Store secrets only in secure deployment settings.
 
+`COSTCAP_STRIPE_MODE=test` accepts only an `sk_test_` key. A live key refuses
+to build the client and does not call Stripe. Test mode does not create or
+edit a price; it sends the owner-supplied `COSTCAP_STRIPE_PRICE_ID`. A
+`livemode: true` Checkout response or webhook does not grant a plan. The
+default mode stays `live` and still requires the existing $19 monthly readback.
+
 Startup must verify the live account is the configured Persoon.ai Inc account,
 charges are enabled, and the active live price is USD 1900, monthly, licensed,
 interval_count=1. Product metadata must contain app=costcap. This gate may fail

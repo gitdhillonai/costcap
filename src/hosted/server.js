@@ -45,7 +45,7 @@ export function spendSummary(receipts, nowMs) {
 
 export function createHostedServer({ storePath, verifyChallenge, sendCode, sendInvite, deliverAlert,
   now = () => Date.now(), secureCookies = true, origin, turnstileSiteKey = "", bodyLimit = 256_000,
-  requestLog = () => {}, billingFactory, stripeEnv = process.env } = {}) {
+  requestLog = () => {}, billingFactory, stripeEnv = process.env, stripeMode = stripeEnv.COSTCAP_STRIPE_MODE || "live" } = {}) {
   if (!storePath || !verifyChallenge || !sendCode || !origin) throw new Error("Store, origin, Turnstile verifier and authorized code sender required");
   const store = openStore(storePath);
   let billing;
@@ -88,7 +88,7 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, sendI
       if (req.method === "GET" && path === "/health") return json(200, { status: "ok", product: "CostCap", beta: true, billing: billing ? "enabled" : "disabled", persistence: "single-process-file", version: VERSION, sha: process.env.COSTCAP_GIT_SHA || null });
       if (req.method === "GET" && path === "/api/health/stripe") {
         await billingReady;
-        return json(200, stripeHealth({ enabled: Boolean(billing), env: stripeEnv }));
+        return json(200, stripeHealth({ enabled: Boolean(billing), env: stripeEnv, mode: stripeMode }));
       }
       const browserMutation = req.method !== "GET" && !req.headers.authorization;
       if (browserMutation && !(billing && path === "/billing/webhook") && req.headers.origin !== origin) fail(403, "Origin rejected");

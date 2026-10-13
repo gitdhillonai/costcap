@@ -1,4 +1,4 @@
-import { createStripeBilling } from "./billing.js";
+import { createStripeBilling, createTestModeStripeBilling } from "./billing.js";
 import { createTransactionalEmail } from "./email.js";
 import { createHostedServer } from "./server.js";
 import { createAlertDelivery } from "./delivery.js";
@@ -6,6 +6,8 @@ import { verifyProductionChallenge } from "./turnstile.js";
 const required = (key) => { if (!process.env[key]) throw new Error(`${key} required`); return process.env[key]; };
 if (process.env.COSTCAP_TURNSTILE_FIXTURE || process.env.COSTCAP_EMAIL_FIXTURE) throw new Error("Production launcher rejects test fixtures");
 if (process.env.COSTCAP_BILLING && process.env.COSTCAP_BILLING !== "enabled") throw new Error("Unknown billing setting");
+const stripeMode = process.env.COSTCAP_STRIPE_MODE ?? "live";
+if (stripeMode !== "live" && stripeMode !== "test") throw new Error("Unknown Stripe mode");
 const origin = required("COSTCAP_ORIGIN");
 if (new URL(origin).protocol !== "https:") throw new Error("Production origin must be HTTPS");
 const turnstileKey = required("TURNSTILE_SECRET_KEY");
@@ -19,10 +21,21 @@ const sendEmail = createTransactionalEmail({ provider: "brevo", apiKey: emailKey
 const delivery = createAlertDelivery({ emailKey, emailFrom: from, emailTo, slackWebhook: process.env.COSTCAP_SLACK_WEBHOOK });
 const { server, evaluateFleetAlerts, billingReady } = createHostedServer({
   origin,
-  billingFactory: process.env.COSTCAP_BILLING === "enabled" ? store => createStripeBilling({
-    store, origin, secretKey: required("COSTCAP_STRIPE_SECRET_KEY"), webhookSecret: required("COSTCAP_STRIPE_WEBHOOK_SECRET"),
-    accountId: required("COSTCAP_STRIPE_ACCOUNT_ID"), priceId: required("COSTCAP_STRIPE_PRICE_ID"),
-  }) : undefined,
+  stripeMode,
+  billingFactory: process.env.COSTCAP_BILLING === "enabled" ? store => {
+    const priceId = required("COSTCAP_STRIPE_PRICE_ID");
+    const webhookSecret = required("COSTCAP_STRIPE_WEBHOOK_SECRET");
+    const secretKey = required("COSTCAP_STRIPE_SECRET_KEY");
+    if (stripeMode === "test") {
+      const billing = createTestModeStripeBilling({ store, origin, secretKey, webhookSecret, priceId });
+      if (!billing) throw new Error("Test-mode Stripe key required");
+      return billing;
+    }
+    return createStripeBilling({
+      store, origin, secretKey, webhookSecret, priceId,
+      accountId: required("COSTCAP_STRIPE_ACCOUNT_ID"),
+    });
+  } : undefined,
   turnstileSiteKey: required("TURNSTILE_SITE_KEY"),
   storePath: process.env.COSTCAP_STORE_PATH ?? "/data/costcap.json",
   verifyChallenge: (response, remoteip) => verifyProductionChallenge({ response, remoteip, secret: turnstileKey, origin }),
