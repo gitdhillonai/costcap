@@ -13,6 +13,7 @@ test('same-origin UI assets use CSP and no inline scripts or data HTML injection
   assert.ok(!/stripe/i.test(html.body));
   assert.match(html.body, /No card. No charges/);
   assert.match(html.body, /Only proxy-routed traffic/);
+  assert.match(html.body, /href="\/v1\/receipts\.csv"/);
   assert.ok(html.headers['content-security-policy'].includes("frame-ancestors 'none'"));
   assert.ok(!html.headers['content-security-policy'].includes('unsafe-inline'));
   assert.ok(!/<script(?![^>]*type="application\/ld\+json")[^>]*>[^<]+/.test(html.body));
