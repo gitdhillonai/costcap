@@ -271,7 +271,10 @@ export function createHostedServer({ storePath, verifyChallenge, sendCode, sendI
     const queued = store.transaction((s) => {
       const out = [];
       for (const a of Object.values(s.agents)) {
-        if (a.revoked) continue;
+        if (a.revoked) {
+          for (const prior of Object.values(s.alerts).filter((x) => x.agentId === a.id && x.active)) prior.active = false;
+          continue;
+        }
         const receipts = Object.values(s.receipts).filter((r) => r.agentId === a.id).map((r) => r.receipt);
         const spent = spendSummary(receipts, now());
         const recent = receipts.filter((r) => Date.parse(r.ts) > now() - 3600_000);
