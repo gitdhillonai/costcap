@@ -18,7 +18,7 @@ Draft. Nothing here is deployed. The hosted stack depends on epic #16 (adopt Ope
 - Endpoints: POST /v1/enroll, GET /v1/policy, POST /v1/receipts.
 
 ## #14 Alerts + audit log
-- Rules: cap_approaching (80%), cap_hit, loop_detected, agent_silent (default 6h). Fire once, re-arm after clearing (src/hosted/alerts.js).
+- Rules: cap_approaching (80%), cap_hit, loop_detected, agent_silent (default 6h). Fire once, re-arm after clearing (src/hosted/alerts.js). `loop_detected` names one guardrail: `spiral_detected`, then `cost_velocity`, then `step_budget`. Non-finite spend does not page.
 - Channels: Brevo email to the configured alert recipients, Slack webhook per configured org. Missing delivery is logged, never silent. Billing stays disabled.
 - Audit log is append-only: who raised a cap, who killed an agent, when (auditEntry).
 - Copy everywhere: guardrails, not guarantees.

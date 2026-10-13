@@ -12,16 +12,20 @@ export function evaluateAlerts(state, { approachFraction = 0.8, silentAfterMs = 
   const out = [];
   for (const scope of ["run", "day", "month"]) {
     const cap = state.caps?.[scope];
-    if (cap == null) continue;
+    if (typeof cap !== "number" || !Number.isFinite(cap)) continue;
     const spent = state.spend?.[scope] ?? 0;
+    if (typeof spent !== "number" || !Number.isFinite(spent)) continue;
     if (spent >= cap) out.push({ kind: "cap_hit", scope, key: `cap_hit:${state.agentId}:${scope}`, cap, spent });
     else if (spent >= cap * approachFraction) out.push({ kind: "cap_approaching", scope, key: `cap_approaching:${state.agentId}:${scope}`, cap, spent });
   }
   // Step budget is the third shipped loop guardrail, with spiral and velocity.
   // Accounting gaps and ordinary cap or kill blocks are not loops.
-  const loopReasons = new Set(["spiral_detected", "cost_velocity", "step_budget"]);
-  if ((state.blockedReasons ?? []).some((r) => loopReasons.has(r))) {
-    out.push({ kind: "loop_detected", key: `loop_detected:${state.agentId}` });
+  // The named reason is stable: spiral, then velocity, then step budget.
+  const loopOrder = ["spiral_detected", "cost_velocity", "step_budget"];
+  const blocked = state.blockedReasons ?? [];
+  const loopReason = loopOrder.find((reason) => blocked.includes(reason));
+  if (loopReason) {
+    out.push({ kind: "loop_detected", key: `loop_detected:${state.agentId}`, reason: loopReason });
   }
   // A local run cap is not a day or month sum. The proxy records that block
   // as budget_exceeded plus a scope. Page that scope once, without turning

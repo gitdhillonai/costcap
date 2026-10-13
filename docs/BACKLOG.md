@@ -47,6 +47,13 @@ Closed: #2, #3, #4, #7, #8, #9, #17, #18, #19, #20, #37, #38, #39, #40, #41, #46
 
 ## Gap-analysis fixes (untracked by a GitHub issue)
 
+- 2026-10-13: loop pages name the guardrail. `loop_detected` now carries
+  `reason` in a fixed order (spiral, cost velocity, step budget) so a window
+  with more than one trip still sends one page and says which guardrail won.
+  Non-finite day/month spend does not raise cap alerts. A month-scope
+  `budget_exceeded` receipt pages `cap_hit` and is not a loop. Covered by
+  `test/hosted.test.js` and `test/hosted-server.test.js`.
+
 - 2026-10-08: auth/request abuse-protection coverage. The signup endpoint
   `/auth/request` (#12) has two safety branches that the hosted-server tests
   never exercised: the per-IP rate limit (five turnstile-passing sends per hour,

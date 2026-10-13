@@ -194,6 +194,22 @@ test("a synced run-scope budget block is delivered once", async (t) => {
   assert.equal(f.delivery.length, 1);
 });
 
+test("a month-scope budget block pages as cap_hit and is not a loop", async (t) => {
+  const f = await fixture(t);
+  const owner = await f.login("month-cap@example.invalid");
+  const token = (await f.request("/v1/enrollment-tokens", { caps: { month: 20 } }, owner.cookie)).body.token;
+  const agent = (await f.request("/v1/enroll", { name: "month" }, null, token)).body;
+  const ts = new Date().toISOString();
+  assert.equal((await f.request("/v1/receipts", { receipts: [
+    { id: "month-block", ts, cost_usd: 0, blocked: true, reason: "budget_exceeded", scope: "month", model: "test" },
+  ] }, null, agent.token)).status, 200);
+  await f.service().evaluateFleetAlerts();
+  assert.equal(f.delivery.length, 1);
+  assert.equal(f.delivery[0].kind, "cap_hit");
+  assert.equal(f.delivery[0].scope, "month");
+  assert.equal(f.delivery.filter((d) => d.kind === "loop_detected").length, 0);
+});
+
 test("a step-budget receipt pages once, ages out, and re-arms", async (t) => {
   let clock = Date.parse("2026-10-12T12:00:00.000Z");
   const f = await fixture(t, { now: () => clock });
@@ -207,6 +223,7 @@ test("a step-budget receipt pages once, ages out, and re-arms", async (t) => {
   await f.service().evaluateFleetAlerts();
   assert.equal(f.delivery.length, 1);
   assert.equal(f.delivery[0].kind, "loop_detected");
+  assert.equal(f.delivery[0].reason, "step_budget");
   assert.equal(f.delivery.filter((d) => d.kind === "cap_hit").length, 0);
   assert.equal(f.delivery[0].key, `loop_detected:${agent.agentId}`);
   await f.service().evaluateFleetAlerts();
