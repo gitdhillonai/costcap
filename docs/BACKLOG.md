@@ -34,8 +34,8 @@ GitHub issues are the source of truth. This file is the index as of 2026-10-07.
 | #50 billing guard | P1 | closed on verify run 37640489524 | no |
 | #51 DNS fail-closed workflow | P2 | closed on verify run 37640713639 | no |
 | #52 live-proof shell | P2 | closed on verify run 37640949670 | no |
-| #64 run-scope cap alert | P0 | open | yes |
-| #65 agent silence on the worker | P1 | open | yes |
+| #64 run-scope cap alert | P0 | closed on verify run 38337453183 | no |
+| #65 agent silence on the worker | P1 | closed on verify run 38337453183 | no |
 
 Closed: #2, #3, #4, #7, #8, #9, #17, #18, #19, #20, #37, #38, #39, #40, #41, #46, #47, #48, #49, #50, #51, #52.
 
