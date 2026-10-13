@@ -63,9 +63,17 @@ test("a velocity-breaker trip pages the operator, an ordinary cap block does not
   // a plain budget block must not, or every capped run would page as a loop.
   const base = { agentId: "a1", caps: { day: 10 }, spend: {}, nowMs: 100_000_000, lastSeenMs: 99_000_000 };
   assert.deepEqual(evaluateAlerts({ ...base, blockedReasons: ["cost_velocity"] }).map((a) => a.kind), ["loop_detected"]);
+  assert.equal(evaluateAlerts({ ...base, blockedReasons: ["cost_velocity"] })[0].reason, "cost_velocity");
   assert.deepEqual(evaluateAlerts({ ...base, blockedReasons: ["step_budget"] }).map((a) => a.kind), ["loop_detected"]);
   assert.equal(evaluateAlerts({ ...base, blockedReasons: ["step_budget"] })[0].key, "loop_detected:a1");
+  assert.equal(evaluateAlerts({ ...base, blockedReasons: ["step_budget"] })[0].reason, "step_budget");
+  // Several guardrails in one window still page once. Spiral wins the name.
+  const both = evaluateAlerts({ ...base, blockedReasons: ["step_budget", "spiral_detected"] });
+  assert.equal(both.length, 1);
+  assert.equal(both[0].reason, "spiral_detected");
   assert.deepEqual(evaluateAlerts({ ...base, blockedReasons: ["budget_exceeded", "killed", "accounting_unavailable", "usage_unavailable", "upstream_outcome_unknown"] }), []);
+  assert.deepEqual(evaluateAlerts({ ...base, spend: { day: Number.NaN } }), []);
+  assert.deepEqual(evaluateAlerts({ ...base, spend: { day: Number.POSITIVE_INFINITY } }), []);
 });
 
 test("dedupe fires once, re-arms after clearing", () => {
