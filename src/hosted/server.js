@@ -21,19 +21,25 @@ export function alertDeliveryState(result) {
 }
 
 // Estimated receipt spend for the dashboard. Null cost is unknown, never zero.
+// Windows follow the UTC instant, matching the local cap engine. A numeric
+// offset is not a calendar prefix.
 export function spendSummary(receipts, nowMs) {
   const utc = new Date(nowMs).toISOString();
-  const fold = (prefix) => {
+  const fold = (window) => {
     let usd = 0, unknown = 0;
     for (const item of receipts) {
       const r = item.receipt ?? item;
-      if (prefix && (typeof r.ts !== "string" || !r.ts.startsWith(prefix))) continue;
+      const instant = new Date(r.ts);
+      if (Number.isNaN(instant.getTime())) continue;
+      const iso = instant.toISOString();
+      if (window === "day" && iso.slice(0, 10) !== utc.slice(0, 10)) continue;
+      if (window === "month" && iso.slice(0, 7) !== utc.slice(0, 7)) continue;
       if (r.cost_usd === null || r.cost_usd === undefined) unknown += 1;
-      else usd += r.cost_usd;
+      else if (typeof r.cost_usd === "number" && Number.isFinite(r.cost_usd)) usd += r.cost_usd;
     }
     return { usd, unknown };
   };
-  return { day: fold(utc.slice(0, 10)), month: fold(utc.slice(0, 7)), all: fold("") };
+  return { day: fold("day"), month: fold("month"), all: fold("all") };
 }
 
 export function createHostedServer({ storePath, verifyChallenge, sendCode, sendInvite, deliverAlert,

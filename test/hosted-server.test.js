@@ -281,6 +281,45 @@ test("agent silence arms, clears after a policy poll, and re-arms", async (t) =>
   assert.equal(f.delivery[1].kind, "agent_silent");
 });
 
+test("an offset timestamp counts on its UTC day and the next day clears the alert", async (t) => {
+  let clock = Date.parse("2026-10-12T18:00:00.000Z");
+  const f = await fixture(t, { now: () => clock });
+  const owner = await f.login("offset@example.invalid");
+  const token = (await f.request("/v1/enrollment-tokens", { caps: { day: 2, month: 10 } }, owner.cookie)).body.token;
+  const agent = (await f.request("/v1/enroll", { name: "offset" }, null, token)).body;
+  // 23:30-04:00 is 03:30Z on 2026-10-13, not the 12th in the string.
+  assert.equal((await f.request("/v1/receipts", { receipts: [
+    { id: "shifted", ts: "2026-10-12T23:30:00-04:00", cost_usd: 2, model: "test" },
+    { id: "shifted-unknown", ts: "2026-10-12T23:45:00-04:00", cost_usd: null, model: "test" },
+  ] }, null, agent.token)).status, 200);
+  await f.service().evaluateFleetAlerts();
+  assert.equal(f.delivery.length, 0);
+  let fleet = await f.request("/v1/fleet", undefined, owner.cookie);
+  let spend = fleet.body.agents.find((a) => a.id === agent.agentId).spend;
+  assert.equal(spend.day.usd, 0);
+  assert.equal(spend.day.unknown, 0);
+  assert.equal(spend.month.usd, 2);
+  assert.equal(spend.month.unknown, 1);
+  clock = Date.parse("2026-10-13T12:00:00.000Z");
+  assert.equal((await f.request("/v1/policy", undefined, null, agent.token)).status, 200);
+  await f.service().evaluateFleetAlerts();
+  assert.equal(f.delivery.length, 1);
+  assert.equal(f.delivery[0].kind, "cap_hit");
+  assert.equal(f.delivery[0].scope, "day");
+  fleet = await f.request("/v1/fleet", undefined, owner.cookie);
+  spend = fleet.body.agents.find((a) => a.id === agent.agentId).spend;
+  assert.equal(spend.day.usd, 2);
+  assert.equal(spend.day.unknown, 1);
+  clock = Date.parse("2026-10-14T12:00:00.000Z");
+  assert.equal((await f.request("/v1/policy", undefined, null, agent.token)).status, 200);
+  await f.service().evaluateFleetAlerts();
+  assert.equal(f.delivery.length, 1);
+  const ownerAgain = await f.login("offset@example.invalid");
+  fleet = await f.request("/v1/fleet", undefined, ownerAgain.cookie);
+  assert.equal(fleet.body.alerts.find((a) => a.kind === "cap_hit").active, false);
+  assert.equal(fleet.body.agents.find((a) => a.id === agent.agentId).spend.day.usd, 0);
+});
+
 test("fleet spend is per agent, UTC day and month, and unknown cost is not zero", async (t) => {
   const f = await fixture(t);
   const owner = await f.login("spend@example.invalid");

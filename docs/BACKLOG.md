@@ -38,6 +38,8 @@ GitHub issues are the source of truth. This file is the index as of 2026-10-07.
 | #65 agent silence on the worker | P1 | closed on verify run 38337453183 | no |
 | #66 step budget loop alert | P0 | closed on verify run 38341631831 | no |
 | #67 unconfigured alert channel | P1 | closed on verify run 38341631831 | no |
+| #68 UTC spend windows | P0 | open | yes |
+| #69 revoke clears alerts | P1 | open | yes |
 
 Closed: #2, #3, #4, #7, #8, #9, #17, #18, #19, #20, #37, #38, #39, #40, #41, #46, #47, #48, #49, #50, #51, #52.
 
