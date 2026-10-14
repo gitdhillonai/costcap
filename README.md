@@ -108,6 +108,8 @@ See `env.example`. Pull real values with `bash scripts/pull-secrets.sh`.
 
 - [TECHSTACK.md](TECHSTACK.md) — runtime, store, and deploy contract
 - [ACCOUNTS.md](ACCOUNTS.md) — service names only, no secrets
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — as-built architecture and trust boundaries
+- [docs/PATH_TO_FIRST_DOLLAR.md](docs/PATH_TO_FIRST_DOLLAR.md) — the free→paid path and its owner gates
 - [docs/VISION.md](docs/VISION.md)
 - [docs/deck/index.html](docs/deck/index.html) — short pitch
 
