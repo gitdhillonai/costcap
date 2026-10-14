@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   billing:
-    runs-on: ${{ vars.USE_HOSTED_RUNNER == 'true' && 'ubuntu-latest' || fromJSON(vars.SELF_HOSTED_RUNNER || '["self-hosted","persoon-build"]') }}
+    runs-on: [self-hosted, persoon-build1]
     environment: production
     env:
       COSTCAP_DEPLOY_HOST: ${{ secrets.COSTCAP_DEPLOY_HOST }}

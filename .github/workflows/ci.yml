@@ -4,7 +4,7 @@ permissions:
   contents: read
 jobs:
   test:
-    runs-on: ${{ vars.USE_HOSTED_RUNNER == 'true' && 'ubuntu-latest' || fromJSON(vars.SELF_HOSTED_RUNNER || '["self-hosted","persoon-build"]') }}
+    runs-on: [self-hosted, persoon-build1]
     timeout-minutes: 30
     strategy:
       matrix:
@@ -22,7 +22,7 @@ jobs:
       - run: npm pack --dry-run
       - run: node scripts/pack-check.mjs
   e2e:
-    runs-on: ${{ vars.USE_HOSTED_RUNNER == 'true' && 'ubuntu-latest' || fromJSON(vars.SELF_HOSTED_RUNNER || '["self-hosted","persoon-build"]') }}
+    runs-on: [self-hosted, persoon-build1]
     timeout-minutes: 30
     permissions:
       contents: read
