@@ -1,5 +1,6 @@
 // Versioned model pricing with a declared fallback rate.
-// Unknown models bill at the fallback (the highest known rate), never free.
+// Unknown models bill at the fallback, flagged and never free.
+// The fallback is a floor for unknown models, not the highest published rate.
 // The table version is returned with every lookup so receipts can pin it.
 
 import { readFileSync } from "node:fs";

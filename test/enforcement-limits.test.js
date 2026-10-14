@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createCapEngine } from "../src/cap.js";
 import { extractUsage, startMeteringProxy } from "../src/proxy.js";
-import { costForUsage } from "../src/pricing.js";
+import { costForUsage, TABLE_VERSION } from "../src/pricing.js";
 import { lockLedger } from "../src/ledger-lock.js";
 import { DEFAULT_KILL_FILE, kill } from "../src/kill.js";
 
@@ -31,7 +31,7 @@ test("a metered call can exceed the remaining run cap and the next call does not
   const ledger = readFileSync(receipts, "utf8").trim().split("\n").map(JSON.parse);
   assert.equal(hits, 1);
   assert.ok(ledger[0].cost_usd > 0.10);
-  assert.equal(ledger[0].table_version, "2026-09-30");
+  assert.equal(ledger[0].table_version, TABLE_VERSION);
   assert.equal(ledger[1].blocked, true);
   server.close();
   up.close();
@@ -137,7 +137,7 @@ test("SSE fixtures for OpenAI, Anthropic and Gemini are buffered then metered", 
   }
   const ledger = readFileSync(receipts, "utf8").trim().split("\n").map(JSON.parse);
   assert.deepEqual(ledger.map((r) => r.provider), ["openai", "anthropic", "gemini"]);
-  assert.ok(ledger.every((r) => r.cost_usd > 0 && r.table_version === "2026-09-30"));
+  assert.ok(ledger.every((r) => r.cost_usd > 0 && r.table_version === TABLE_VERSION));
 });
 
 test("Anthropic cache creation is priced at the input rate", () => {

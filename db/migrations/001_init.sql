@@ -15,10 +15,14 @@ ALTER TABLE orgs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY orgs_tenant ON orgs
-  USING (id = current_setting('app.org_id', true)::uuid);
+  FOR ALL
+  USING (id = current_setting('app.org_id', true)::uuid)
+  WITH CHECK (id = current_setting('app.org_id', true)::uuid);
 
 CREATE POLICY users_tenant ON users
-  USING (org_id = current_setting('app.org_id', true)::uuid);
+  FOR ALL
+  USING (org_id = current_setting('app.org_id', true)::uuid)
+  WITH CHECK (org_id = current_setting('app.org_id', true)::uuid);
 
 ALTER TABLE orgs OWNER TO costcap_migrate;
 ALTER TABLE users OWNER TO costcap_migrate;

@@ -35,6 +35,31 @@ test("postgres migrations apply and roll back without changing the running store
   assert.equal(psql(container, "SELECT r.rolname FROM pg_class c JOIN pg_roles r ON r.oid = c.relowner WHERE c.relname = 'orgs';").trim(), "costcap_migrate");
   assert.equal(psql(container, "SELECT has_schema_privilege('costcap_app', 'public', 'CREATE');").trim(), "f");
   assert.equal(psql(container, "SELECT has_table_privilege('costcap_app', 'orgs', 'INSERT');").trim(), "t");
+  const orgA = "11111111-1111-4111-8111-111111111111";
+  const orgB = "22222222-2222-4222-8222-222222222222";
+  const userA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const userB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  psql(container, `
+    INSERT INTO orgs (id, name) VALUES ('${orgA}', 'A'), ('${orgB}', 'B');
+    INSERT INTO users (id, org_id, email, role) VALUES
+      ('${userA}', '${orgA}', 'a@example.test', 'owner'),
+      ('${userB}', '${orgB}', 'b@example.test', 'owner');
+  `);
+  const asApp = (orgId, sql) => psql(container, `
+    SET ROLE costcap_app;
+    ${orgId ? `SET app.org_id = '${orgId}';` : "RESET app.org_id;"}
+    ${sql}
+  `).split("\n").map((line) => line.trim()).filter((line) => line && line !== "SET" && line !== "RESET");
+  assert.deepEqual(asApp(orgA, "SELECT id FROM orgs ORDER BY id;"), [orgA]);
+  assert.deepEqual(asApp(orgA, "SELECT id FROM users ORDER BY id;"), [userA]);
+  assert.deepEqual(asApp(orgA, `UPDATE orgs SET name = 'hacked' WHERE id = '${orgB}';`), ["UPDATE 0"]);
+  assert.deepEqual(asApp(orgA, `DELETE FROM users WHERE id = '${userB}';`), ["DELETE 0"]);
+  assert.throws(() => asApp(orgA, `INSERT INTO orgs (id, name) VALUES ('${orgB}', 'stolen');`));
+  assert.throws(() => asApp(orgA, `UPDATE users SET org_id = '${orgB}' WHERE id = '${userA}';`));
+  const unset = (sql) => psql(container, `SET ROLE costcap_app;\n${sql}`).split("\n").map((line) => line.trim()).filter((line) => line && line !== "SET");
+  assert.deepEqual(unset("SELECT count(*) FROM orgs;"), ["0"]);
+  assert.deepEqual(unset("SELECT count(*) FROM users;"), ["0"]);
+  assert.equal(psql(container, "SELECT name FROM orgs WHERE id = '" + orgB + "';").trim(), "B");
   applyFile(container, file("db/migrations/001_init.down.sql"));
   assert.equal(psql(container, "SELECT to_regclass('public.orgs');").trim(), "");
   assert.equal(readFileSync(file("src/hosted/run.js"), "utf8").includes("DATABASE_URL"), false);

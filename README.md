@@ -28,7 +28,11 @@ CostCap. The local proxy binds to 127.0.0.1.
   for each wrapper. Separate ledgers do not share day/month caps. A crashed
   wrapper leaves a lock that you must remove only after checking it stopped.
 - Daily and monthly periods use UTC. Pricing is a versioned estimate, not the
-  provider bill. Check `src/pricing-table.json` before relying on rates.
+  provider bill. The table prices common OpenAI, Anthropic, Gemini, and
+  OpenRouter model ids. Unknown models use the declared fallback. Rates are the
+  standard text price in force on the table version date (the lower tier when a
+  model publishes a prompt-length split). Check `src/pricing-table.json` before
+  relying on rates.
 - Missing/invalid usage or an uncertain network outcome pauses further calls.
   Such receipts have `cost_usd: null`. Reconcile them before starting again;
   existing unknown-cost receipts block restart. Never replace unknown cost with
